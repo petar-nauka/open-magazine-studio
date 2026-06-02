@@ -13,12 +13,13 @@ export interface ArticleDoc {
   accent: AccentName | string;
   align: Align;
   openerImage?: string;
+  dropCap: boolean;
   blocks: DocBlock[];
 }
 
 export function articleFromParsed(
   parsed: ParsedArticle,
-  opts: { author?: string; accent?: AccentName | string; align?: Align } = {}
+  opts: { author?: string; accent?: AccentName | string; align?: Align; dropCap?: boolean; openerImage?: string } = {}
 ): ArticleDoc {
   const blocks: DocBlock[] = parsed.blocks.map((b, i) => ({
     ...b,
@@ -32,7 +33,8 @@ export function articleFromParsed(
     author: opts.author ?? '',
     accent: opts.accent ?? 'teal',
     align: opts.align ?? 'justify',
-    openerImage: firstImage?.content,
+    openerImage: opts.openerImage ?? firstImage?.content,
+    dropCap: opts.dropCap ?? true,
     blocks,
   };
 }

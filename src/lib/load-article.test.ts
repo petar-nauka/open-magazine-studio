@@ -46,3 +46,28 @@ describe('rowsToArticleDoc', () => {
     expect(noAlign.align).toBe('justify');
   });
 });
+
+const imageBlocks: BlockRow[] = [
+  { id: 'i1', type: 'image', content: 'A.jpg', position: 0, metadata: {} },
+  { id: 't1', type: 'text', content: 'Body', position: 1, metadata: {} },
+];
+
+describe('rowsToArticleDoc: dropCap & openerImage', () => {
+  it('passes dropCap and openerImage through from layout_config', () => {
+    const row: ArticleRow = {
+      title: 'T',
+      author: null,
+      layout_config: { accent: 'teal', align: 'left', dropCap: false, openerImage: 'X.jpg' },
+    };
+    const doc = rowsToArticleDoc(row, imageBlocks);
+    expect(doc.dropCap).toBe(false);
+    expect(doc.openerImage).toBe('X.jpg');
+  });
+
+  it('defaults dropCap to true and openerImage to the first image when absent', () => {
+    const row: ArticleRow = { title: 'T', author: null, layout_config: { accent: 'teal' } };
+    const doc = rowsToArticleDoc(row, imageBlocks);
+    expect(doc.dropCap).toBe(true);
+    expect(doc.openerImage).toBe('A.jpg');
+  });
+});

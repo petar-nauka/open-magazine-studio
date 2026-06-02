@@ -1,21 +1,17 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { BookOpen, Download, Layers, ArrowLeft, Sparkles, Settings, Archive, MessageSquare } from 'lucide-react';
+import { BookOpen, Download, Layers, ArrowLeft, Settings, Archive, MessageSquare } from 'lucide-react';
 import { PasteZone } from './components/PasteZone';
 import { BlockEditor } from './components/BlockEditor';
 import { AIChatPanel } from './components/AIChatPanel';
 import { MagazinePreviewFrame, type MagazinePreviewFrameHandle } from './magazine/MagazinePreviewFrame';
-import { LayoutSettings } from './components/LayoutSettings';
-import { BrandingPanel } from './components/BrandingPanel';
+import { ArticleSidebar } from './components/ArticleSidebar';
 import { type ParsedArticle, type ContentBlock } from './lib/paste-parser';
 import { articleFromParsed } from './lib/document-model';
 import { uploadArticleImages } from './lib/image-upload';
-import { generateLayout, getDefaultBranding, type MagazineLayout, type BrandingConfig } from './lib/layout-engine';
 import { supabase } from './lib/supabase';
 import { nextSortOrder } from './lib/issues';
 import { Toast } from './components/Toast';
-import { AccentPicker } from './components/AccentPicker';
-import { AlignmentPicker } from './components/AlignmentPicker';
 import type { AccentName } from './design-system/brand';
 import type { Align } from './design-system/alignment';
 
@@ -26,15 +22,9 @@ function App() {
   const [searchParams] = useSearchParams();
   const [view, setView] = useState<AppView>('paste');
   const [article, setArticle] = useState<ParsedArticle | null>(null);
-  const [layout, setLayout] = useState<MagazineLayout | null>(null);
-  const [accentColor, setAccentColor] = useState('#1a5f3a');
-  const [font, setFont] = useState('Georgia');
-  const [branding, setBranding] = useState<BrandingConfig>(getDefaultBranding());
   const [saving, setSaving] = useState(false);
-  const [generatingLayout, setGeneratingLayout] = useState(false);
   const [articleAuthor, setArticleAuthor] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(searchParams.get('issue'));
   const [categories, setCategories] = useState<{ id: string; name: string; issue_number: number | null }[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -43,11 +33,13 @@ function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [accent, setAccent] = useState<AccentName | string>('teal');
   const [align, setAlign] = useState<Align>('justify');
+  const [dropCap, setDropCap] = useState(true);
+  const [openerImage, setOpenerImage] = useState<string | undefined>(undefined);
 
   const previewRef = useRef<MagazinePreviewFrameHandle>(null);
   const previewDoc = useMemo(
-    () => (article ? articleFromParsed(article, { author: articleAuthor, accent, align }) : null),
-    [article, articleAuthor, accent, align]
+    () => (article ? articleFromParsed(article, { author: articleAuthor, accent, align, dropCap, openerImage }) : null),
+    [article, articleAuthor, accent, align, dropCap, openerImage]
   );
 
   useEffect(() => {
@@ -77,19 +69,15 @@ function App() {
       }
     }
     setArticle(imported);
-    const generatedLayout = generateLayout(imported.blocks, branding);
-    setLayout(generatedLayout);
-    setAccentColor(generatedLayout.accentColor);
-    setFont(generatedLayout.font);
     setView('editor');
-  }, [branding]);
+  }, []);
 
   const handleSave = async () => {
-    if (!article || !layout) return;
+    if (!article) return;
     setSaving(true);
 
     try {
-      const layoutToSave = { ...layout, accentColor, font, branding, accent, align };
+      const layoutToSave = { accent, align, dropCap, openerImage };
 
       if (savedId) {
         const { error } = await supabase
@@ -150,40 +138,9 @@ function App() {
     }
   };
 
-  const handleGenerateLayout = async () => {
-    if (!article) return;
-    setGeneratingLayout(true);
-
-    try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/suggest-layout`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ blocks: article.blocks }),
-      });
-
-      if (!response.ok) throw new Error('Layout generation failed');
-
-      const newLayout = await response.json();
-      setLayout({ ...newLayout, font, accentColor, branding });
-    } catch (err) {
-      console.error('AI layout failed, using local engine:', err);
-      const fallback = generateLayout(article.blocks, branding);
-      setLayout(fallback);
-    } finally {
-      setGeneratingLayout(false);
-    }
-  };
-
   const handleBlocksChange = (updatedBlocks: ContentBlock[]) => {
     if (!article) return;
-    const updatedArticle = { ...article, blocks: updatedBlocks };
-    setArticle(updatedArticle);
-    const newLayout = generateLayout(updatedBlocks, branding);
-    setLayout({ ...newLayout, accentColor, font, branding });
+    setArticle({ ...article, blocks: updatedBlocks });
   };
 
   const handleAIRewrite = async (blockId: string, instruction: string): Promise<string | null> => {
@@ -361,110 +318,24 @@ function App() {
       <div className="max-w-[1600px] mx-auto px-6 py-6 flex gap-6">
         {/* Left sidebar: settings */}
         <aside className="w-72 shrink-0 print:hidden">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 sticky top-20 max-h-[calc(100vh-120px)] overflow-y-auto">
-            <div className="mb-5">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-                Автор
-              </label>
-              <input
-                type="text"
-                value={articleAuthor}
-                onChange={(e) => setArticleAuthor(e.target.value)}
-                placeholder="Име на автора"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200"
-              />
-            </div>
-
-            <div className="mb-5"><AccentPicker value={accent} onChange={setAccent} /></div>
-
-            <div className="mb-5">
-              <AlignmentPicker value={align} onChange={(a) => setAlign(a ?? 'justify')} label="Подравняване на текста" />
-            </div>
-
-            {/* Category */}
-            <div className="mb-5">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-                Брой / Категория
-              </label>
-              <select
-                value={categoryId || ''}
-                onChange={(e) => setCategoryId(e.target.value || null)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200"
-              >
-                <option value="">Без категория</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.issue_number ? `#${cat.issue_number} - ` : ''}{cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tags */}
-            <div className="mb-5">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-                Тагове
-              </label>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-[10px] text-gray-700 rounded"
-                    >
-                      {tag}
-                      <button onClick={() => setTags(tags.filter((t) => t !== tag))} className="text-gray-400 hover:text-gray-700">
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-1">
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const tag = tagInput.trim();
-                      if (tag && !tags.includes(tag)) setTags([...tags, tag]);
-                      setTagInput('');
-                    }
-                  }}
-                  placeholder="Добави таг..."
-                  className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-200"
-                />
-              </div>
-            </div>
-
-            <LayoutSettings
-              accentColor={accentColor}
-              onAccentColorChange={setAccentColor}
-              font={font}
-              onFontChange={setFont}
-            />
-
-            <BrandingPanel branding={branding} onChange={setBranding} />
-
-            <div className="mt-5 pt-5 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
-                <Sparkles className="w-4 h-4" />
-                AI помощник
-              </div>
-              <button
-                onClick={handleGenerateLayout}
-                disabled={generatingLayout}
-                className="w-full px-3 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
-              >
-                {generatingLayout ? 'Генериране...' : 'Пренареди layout (AI)'}
-              </button>
-              <p className="text-[10px] text-gray-400 mt-2">
-                AI анализира текста и снимките за оптимално разпределение по страници.
-              </p>
-            </div>
-          </div>
+          <ArticleSidebar
+            author={articleAuthor}
+            onAuthorChange={setArticleAuthor}
+            categoryId={categoryId}
+            onCategoryChange={setCategoryId}
+            categories={categories}
+            tags={tags}
+            onTagsChange={setTags}
+            images={(article?.blocks ?? []).filter((b) => b.type === 'image').map((b) => ({ id: b.id, url: b.content }))}
+            openerImage={openerImage}
+            onOpenerImageChange={setOpenerImage}
+            accent={accent}
+            onAccentChange={setAccent}
+            align={align}
+            onAlignChange={setAlign}
+            dropCap={dropCap}
+            onDropCapChange={setDropCap}
+          />
         </aside>
 
         {/* Center: preview */}

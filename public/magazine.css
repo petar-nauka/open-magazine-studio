@@ -27,8 +27,10 @@
 
 .magazine p { margin: 0 0 .6em; }
 
-/* Coloured drop-cap on the first body paragraph. */
-.magazine .article-body > p.lead::first-letter {
+/* Coloured drop-cap on the first body paragraph. Rendered as an explicit
+   <span class="dropcap"> rather than ::first-letter: Paged.js does not apply
+   ::first-letter to its paginated (printed) output, only to the hidden source. */
+.magazine .article-body p.lead .dropcap {
   font-family: 'Montserrat'; font-weight: 800;
   color: var(--accent);
   float: left; font-size: 3.2em; line-height: .82; padding: .02em .08em 0 0;

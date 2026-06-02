@@ -48,6 +48,16 @@ export async function uploadImage(blob: Blob): Promise<string> {
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+// Read a picked File into a base64 data URL (for compressDataUrl + uploadImage).
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // Replace every base64-image block in the article with an uploaded Storage URL.
 // Blocks whose content is already a URL (e.g. re-editing a saved article) are left as-is.
 export async function uploadArticleImages(

@@ -6,7 +6,7 @@ import type { Align } from '../design-system/alignment';
 export interface ArticleRow {
   title: string;
   author: string | null;
-  layout_config: { accent?: string; align?: Align } | null;
+  layout_config: { accent?: string; align?: Align; dropCap?: boolean; openerImage?: string } | null;
 }
 
 export interface BlockRow {
@@ -37,6 +37,8 @@ export function rowsToArticleDoc(article: ArticleRow, blocks: BlockRow[]): Artic
     author: article.author ?? '',
     accent: article.layout_config?.accent ?? 'teal',
     align: article.layout_config?.align ?? 'justify',
+    dropCap: article.layout_config?.dropCap,
+    openerImage: article.layout_config?.openerImage,
   });
 }
 

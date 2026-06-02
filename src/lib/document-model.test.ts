@@ -2,6 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { articleFromParsed, type ArticleDoc } from './document-model';
 import type { ParsedArticle } from './paste-parser';
 
+const base: ParsedArticle = {
+  title: 'T',
+  blocks: [
+    { id: 'i1', type: 'image', content: 'A.jpg', position: 0, metadata: {} },
+    { id: 'i2', type: 'image', content: 'B.jpg', position: 1, metadata: {} },
+    { id: 't1', type: 'text', content: 'Body text', position: 2, metadata: {} },
+  ],
+};
+
 const parsed: ParsedArticle = {
   title: 'Тестова статия',
   blocks: [
@@ -38,5 +47,23 @@ describe('articleFromParsed align', () => {
   it('uses the provided align', () => {
     const doc = articleFromParsed({ title: 'T', blocks: [] }, { align: 'center' });
     expect(doc.align).toBe('center');
+  });
+});
+
+describe('articleFromParsed: opener & drop cap', () => {
+  it('defaults openerImage to the first image and dropCap to true', () => {
+    const doc = articleFromParsed(base);
+    expect(doc.openerImage).toBe('A.jpg');
+    expect(doc.dropCap).toBe(true);
+  });
+
+  it('uses an explicit openerImage override', () => {
+    const doc = articleFromParsed(base, { openerImage: 'B.jpg' });
+    expect(doc.openerImage).toBe('B.jpg');
+  });
+
+  it('respects dropCap=false', () => {
+    const doc = articleFromParsed(base, { dropCap: false });
+    expect(doc.dropCap).toBe(false);
   });
 });

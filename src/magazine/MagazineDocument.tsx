@@ -14,7 +14,7 @@ export function MagazineDocument({ doc, anchorId }: { doc: ArticleDoc; anchorId?
   return (
     <div className="magazine" style={style}>
       <ArticleOpener title={doc.title} author={doc.author} image={doc.openerImage} anchorId={anchorId} />
-      <ArticleBody blocks={bodyBlocks} align={doc.align} />
+      <ArticleBody blocks={bodyBlocks} align={doc.align} dropCap={doc.dropCap} />
     </div>
   );
 }

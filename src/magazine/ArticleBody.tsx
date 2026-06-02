@@ -16,7 +16,7 @@ function Bullet({ content, align }: { content: string; align?: Align }) {
   return <p className="bullet" style={style}>{text}</p>;
 }
 
-export function ArticleBody({ blocks, align }: { blocks: DocBlock[]; align: Align }) {
+export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; align: Align; dropCap: boolean }) {
   let leadUsed = false;
   return (
     <div className="article-body" style={{ textAlign: align }}>
@@ -37,7 +37,14 @@ export function ArticleBody({ blocks, align }: { blocks: DocBlock[]; align: Alig
           default: {
             const isLead = !leadUsed;
             if (isLead) leadUsed = true;
-            return <p className={isLead ? 'lead' : undefined} key={b.id} style={a ? { textAlign: a } : undefined}>{b.content}</p>;
+            const useDropCap = isLead && dropCap && !!b.content;
+            return (
+              <p className={useDropCap ? 'lead' : undefined} key={b.id} style={a ? { textAlign: a } : undefined}>
+                {useDropCap
+                  ? (<><span className="dropcap">{b.content.slice(0, 1)}</span>{b.content.slice(1)}</>)
+                  : b.content}
+              </p>
+            );
           }
         }
       })}
