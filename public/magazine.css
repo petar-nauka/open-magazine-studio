@@ -1,0 +1,109 @@
+/* A4 page with running header (left/right) and centred page number. */
+@page {
+  size: A4;
+  margin: 18mm 15mm 16mm 15mm;
+  @top-left   { content: 'БЪЛГАРСКА НАУКА'; font-family: 'Montserrat'; font-weight: 700;
+                font-size: 8pt; letter-spacing: .08em; color: var(--accent); }
+  @top-right  { content: 'WWW.NAUKA.BG'; font-family: 'Montserrat'; font-weight: 700;
+                font-size: 8pt; letter-spacing: .08em; color: var(--accent); }
+  @bottom-center { content: counter(page); font-family: 'Andika'; font-size: 9pt; color: #444; }
+}
+
+.magazine {
+  --accent: #1ca0c4;
+  font-family: 'Andika', sans-serif;
+  color: #1a1a1a;
+  font-size: 10.5pt;
+  line-height: 1.5;
+}
+
+/* Body flows in two justified columns. */
+.magazine .article-body {
+  column-count: 2;
+  column-gap: 7mm;
+  text-align: justify;
+  hyphens: auto;
+}
+
+.magazine p { margin: 0 0 .6em; }
+
+/* Coloured drop-cap on the first body paragraph. */
+.magazine .article-body > p.lead::first-letter {
+  font-family: 'Montserrat'; font-weight: 800;
+  color: var(--accent);
+  float: left; font-size: 3.2em; line-height: .82; padding: .02em .08em 0 0;
+}
+
+/* UPPERCASE coloured section subheadings. */
+.magazine h2.subheading {
+  font-family: 'Montserrat'; font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase; letter-spacing: .02em;
+  font-size: 11pt; margin: 1.1em 0 .4em; break-after: avoid;
+}
+
+/* Bullets with bold accent lead-in (the lead-in term is wrapped in <strong>). */
+.magazine p.bullet { padding-left: 1em; text-indent: -1em; }
+.magazine p.bullet strong { color: var(--accent); }
+
+/* In-column images. */
+.magazine img.inline { width: 100%; height: auto; margin: .4em 0 .6em; border-radius: 2px;
+  break-inside: avoid; }
+
+/* Bold-italic accent pull quote spanning both columns. */
+.magazine .pull-quote { column-span: all; font-style: italic; font-weight: 700;
+  color: var(--accent); font-size: 12pt; line-height: 1.4; margin: .6em 0; }
+
+/* References block: smaller italic, links underlined in accent. */
+.magazine .references { font-size: 8.5pt; font-style: italic; line-height: 1.35; color: #333; }
+.magazine .references a { color: var(--accent); text-decoration: underline; word-break: break-word; }
+
+/* Opener page filling the A4 content area (page height 297mm minus 18mm+16mm margins).
+   A dark fallback colour keeps the white title legible when the image is missing/transparent. */
+.magazine .opener { position: relative; width: 100%; height: calc(297mm - 34mm); break-after: page;
+  background-color: #222; background-size: cover; background-position: center; color: #fff; }
+.magazine .opener .scrim { position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.65) 0%, rgba(0,0,0,0) 45%); }
+.magazine .opener .opener-title { position: absolute; left: 6%; right: 6%; bottom: 8%;
+  font-family: 'Montserrat'; font-weight: 800; font-size: 30pt; line-height: 1.05;
+  text-transform: uppercase; }
+.magazine .opener .opener-author { position: absolute; left: 6%; bottom: 5%;
+  font-family: 'Andika'; font-style: italic; font-size: 11pt; }
+
+/* --- Phase 2b: whole-issue assembly --------------------------------------- */
+
+/* Full-bleed plates (cover, article openers, ads) and the contents page carry
+   NO printed folio, but still count toward counter(page). The running header
+   (top-left/top-right) is intentionally left unchanged. */
+.magazine .opener, .toc, .ad-plate { page: nofolio; }
+@page nofolio { @bottom-center { content: none; } }
+
+/* Full-page advert: whole image fit (contain) on a white sheet, no crop. */
+.ad-plate {
+  position: relative; width: 100%; height: calc(297mm - 34mm);
+  break-after: page;
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  background-color: #fff;
+}
+
+/* Contents page. */
+.toc { break-after: page; font-family: 'Andika', sans-serif; color: #1a1a1a; }
+.toc h1 {
+  font-family: 'Montserrat'; font-weight: 800; color: #007daa;
+  font-size: 22pt; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 8mm;
+}
+.toc-entry {
+  display: flex; align-items: center; gap: 4mm;
+  text-decoration: none; color: inherit; margin-bottom: 5mm;
+}
+.toc-entry .thumb {
+  width: 18mm; height: 18mm; flex: none; object-fit: cover;
+  border-radius: 2px; background: #eee;
+}
+.toc-entry .title { font-family: 'Montserrat'; font-weight: 700; font-size: 12pt; }
+.toc-entry .leader { flex: 1; border-bottom: 1px dotted #bbb; margin: 0 2mm; }
+/* Page number resolved by Paged.js from the <a>'s href target. */
+.toc-entry::after {
+  content: target-counter(attr(href), page);
+  font-family: 'Montserrat'; font-weight: 700; color: #007daa; white-space: nowrap;
+}
