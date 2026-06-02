@@ -13,6 +13,10 @@ a polished A4 PDF straight from your browser.
 > work by fixed rules, so every article in an issue looks consistent and
 > professional, and you only fine‑tune the rest.
 
+![Open Magazine Studio — the in-app editor](docs/screenshot-editor.png)
+
+*Editing an issue in Open Magazine Studio: paste your article and the consistent „БГ Наука" magazine layout appears instantly (centre). Adjust the accent colour and content blocks on the left, use the optional AI editorial assistant on the right, and export to A4 PDF from the top bar.*
+
 ---
 
 ## ✨ What it does
