@@ -15,7 +15,9 @@ import { supabase } from './lib/supabase';
 import { nextSortOrder } from './lib/issues';
 import { Toast } from './components/Toast';
 import { AccentPicker } from './components/AccentPicker';
+import { AlignmentPicker } from './components/AlignmentPicker';
 import type { AccentName } from './design-system/brand';
+import type { Align } from './design-system/alignment';
 
 type AppView = 'paste' | 'editor';
 
@@ -40,11 +42,12 @@ function App() {
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [accent, setAccent] = useState<AccentName | string>('teal');
+  const [align, setAlign] = useState<Align>('justify');
 
   const previewRef = useRef<MagazinePreviewFrameHandle>(null);
   const previewDoc = useMemo(
-    () => (article ? articleFromParsed(article, { author: articleAuthor, accent }) : null),
-    [article, articleAuthor, accent]
+    () => (article ? articleFromParsed(article, { author: articleAuthor, accent, align }) : null),
+    [article, articleAuthor, accent, align]
   );
 
   useEffect(() => {
@@ -86,7 +89,7 @@ function App() {
     setSaving(true);
 
     try {
-      const layoutToSave = { ...layout, accentColor, font, branding, accent };
+      const layoutToSave = { ...layout, accentColor, font, branding, accent, align };
 
       if (savedId) {
         const { error } = await supabase
@@ -373,6 +376,10 @@ function App() {
             </div>
 
             <div className="mb-5"><AccentPicker value={accent} onChange={setAccent} /></div>
+
+            <div className="mb-5">
+              <AlignmentPicker value={align} onChange={(a) => setAlign(a ?? 'justify')} label="Подравняване на текста" />
+            </div>
 
             {/* Category */}
             <div className="mb-5">

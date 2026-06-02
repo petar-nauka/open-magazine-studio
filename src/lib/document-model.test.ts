@@ -29,3 +29,14 @@ describe('articleFromParsed', () => {
     expect(articleFromParsed(parsed).accent).toBe('teal');
   });
 });
+
+describe('articleFromParsed align', () => {
+  it('defaults align to justify', () => {
+    const doc = articleFromParsed({ title: 'T', blocks: [] });
+    expect(doc.align).toBe('justify');
+  });
+  it('uses the provided align', () => {
+    const doc = articleFromParsed({ title: 'T', blocks: [] }, { align: 'center' });
+    expect(doc.align).toBe('center');
+  });
+});

@@ -12,7 +12,9 @@ import { generateLayout, getDefaultBranding, type MagazineLayout, type BrandingC
 import { supabase } from '../lib/supabase';
 import { Toast } from '../components/Toast';
 import { AccentPicker } from '../components/AccentPicker';
+import { AlignmentPicker } from '../components/AlignmentPicker';
 import type { AccentName } from '../design-system/brand';
+import type { Align } from '../design-system/alignment';
 
 interface Category {
   id: string;
@@ -41,11 +43,12 @@ export function EditArticlePage() {
   const [chatOpen, setChatOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [accent, setAccent] = useState<AccentName | string>('teal');
+  const [align, setAlign] = useState<Align>('justify');
 
   const previewRef = useRef<MagazinePreviewFrameHandle>(null);
   const previewDoc = useMemo(
-    () => articleFromParsed({ title, blocks }, { author, accent }),
-    [title, blocks, author, accent]
+    () => articleFromParsed({ title, blocks }, { author, accent, align }),
+    [title, blocks, author, accent, align]
   );
 
   useEffect(() => {
@@ -76,6 +79,7 @@ export function EditArticlePage() {
             setBranding(article.layout_config.branding);
           }
           if (article.layout_config?.accent) setAccent(article.layout_config.accent);
+          if (article.layout_config?.align) setAlign(article.layout_config.align);
         }
       }
 
@@ -102,7 +106,7 @@ export function EditArticlePage() {
     setSaving(true);
 
     try {
-      const layoutToSave = layout ? { ...layout, accentColor, font, branding, accent } : null;
+      const layoutToSave = layout ? { ...layout, accentColor, font, branding, accent, align } : null;
 
       const { error } = await supabase
         .from('mag_pdf_articles')
@@ -289,6 +293,10 @@ export function EditArticlePage() {
             </div>
 
             <div className="mb-5"><AccentPicker value={accent} onChange={setAccent} /></div>
+
+            <div className="mb-5">
+              <AlignmentPicker value={align} onChange={(a) => setAlign(a ?? 'justify')} label="Подравняване на текста" />
+            </div>
 
             {/* Category / Issue */}
             <div>

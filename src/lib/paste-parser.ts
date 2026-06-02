@@ -1,3 +1,5 @@
+import type { Align } from '../design-system/alignment';
+
 export interface ContentBlock {
   id: string;
   type: 'heading' | 'text' | 'image' | 'pull_quote';
@@ -11,6 +13,7 @@ export interface ContentBlock {
     imageHeight?: number;
     imageAspect?: 'landscape' | 'portrait' | 'square';
     originalSrc?: string;
+    align?: Align;
   };
 }
 

@@ -16,6 +16,7 @@ import {
   Check,
   X,
 } from 'lucide-react';
+import { AlignmentPicker } from './AlignmentPicker';
 
 interface BlockEditorProps {
   blocks: ContentBlock[];
@@ -138,6 +139,13 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
             </span>
 
             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              {block.type !== 'image' && (
+                <AlignmentPicker
+                  value={block.metadata.align}
+                  allowInherit
+                  onChange={(a) => updateBlock(block.id, { metadata: { ...block.metadata, align: a } })}
+                />
+              )}
               {block.type === 'text' && onAIRewrite && (
                 <button
                   onClick={() => {

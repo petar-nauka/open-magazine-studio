@@ -1,11 +1,12 @@
 import { supabase } from './supabase';
 import { articleFromParsed, type ArticleDoc } from './document-model';
 import type { ContentBlock, ParsedArticle } from './paste-parser';
+import type { Align } from '../design-system/alignment';
 
 export interface ArticleRow {
   title: string;
   author: string | null;
-  layout_config: { accent?: string } | null;
+  layout_config: { accent?: string; align?: Align } | null;
 }
 
 export interface BlockRow {
@@ -35,6 +36,7 @@ export function rowsToArticleDoc(article: ArticleRow, blocks: BlockRow[]): Artic
   return articleFromParsed(parsed, {
     author: article.author ?? '',
     accent: article.layout_config?.accent ?? 'teal',
+    align: article.layout_config?.align ?? 'justify',
   });
 }
 

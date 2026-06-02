@@ -38,4 +38,11 @@ describe('rowsToArticleDoc', () => {
     const second = doc.blocks.find((b) => b.id === 'b2');
     expect(second?.metadata).toEqual({});
   });
+
+  it('reads align from layout_config (default justify)', () => {
+    const withAlign = rowsToArticleDoc({ title: 'T', author: null, layout_config: { align: 'right' } }, []);
+    expect(withAlign.align).toBe('right');
+    const noAlign = rowsToArticleDoc({ title: 'T', author: null, layout_config: {} }, []);
+    expect(noAlign.align).toBe('justify');
+  });
 });
