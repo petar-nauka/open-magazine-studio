@@ -72,7 +72,7 @@ paste / .docx  ─►  content blocks  ─►  layout engine (Paged.js, A4)  ─
 self‑hosted instance both work).
 
 ```bash
-git clone https://github.com/<your-account>/open-magazine-studio.git
+git clone https://github.com/petar-nauka/open-magazine-studio.git
 cd open-magazine-studio
 npm install
 cp .env.example .env      # then fill in your Supabase URL + anon key
