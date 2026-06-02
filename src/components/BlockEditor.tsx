@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { AlignmentPicker } from './AlignmentPicker';
+import { compressDataUrl, uploadImage } from '../lib/image-upload';
 
 interface BlockEditorProps {
   blocks: ContentBlock[];
@@ -303,6 +304,8 @@ function ImageBlockEditor({
   onChange: (updates: Partial<ContentBlock>) => void;
 }) {
   const [urlInput, setUrlInput] = useState(block.content);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const handleUrlChange = () => {
     if (urlInput !== block.content) {
@@ -310,9 +313,36 @@ function ImageBlockEditor({
     }
   };
 
+  const openPicker = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    fileRef.current?.click();
+  };
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const blob = await compressDataUrl(dataUrl);
+      const url = await uploadImage(blob);
+      setUrlInput(url);
+      onChange({ content: url });
+    } catch (err) {
+      alert('Грешка при качване на снимката: ' + String(err));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
   return (
     <div onClick={onActivate} className="cursor-pointer">
-      {/* Image preview */}
+      {/* Image preview — empty placeholder doubles as an upload button */}
       <div className="w-full h-20 rounded-md overflow-hidden bg-gray-100 mb-1.5">
         {block.content ? (
           <img
@@ -324,13 +354,38 @@ function ImageBlockEditor({
             }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">
-            <ImagePlus className="w-5 h-5" />
-          </div>
+          <button
+            type="button"
+            onClick={openPicker}
+            disabled={uploading}
+            className="w-full h-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200/60 transition-colors"
+            title="Кликни, за да качиш снимка"
+          >
+            {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+          </button>
         )}
       </div>
 
-      {/* URL input when active */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0])}
+      />
+
+      {/* Upload button (always available — also for replacing an existing image) */}
+      <button
+        type="button"
+        onClick={openPicker}
+        disabled={uploading}
+        className="w-full flex items-center justify-center gap-1.5 text-[11px] text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+      >
+        {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+        {uploading ? 'Качвам…' : 'Качи снимка'}
+      </button>
+
+      {/* URL input when active — optional, for an already-hosted image */}
       {isActive && (
         <input
           type="text"
@@ -338,9 +393,8 @@ function ImageBlockEditor({
           onChange={(e) => setUrlInput(e.target.value)}
           onBlur={handleUrlChange}
           onKeyDown={(e) => e.key === 'Enter' && handleUrlChange()}
-          placeholder="URL на снимката..."
-          className="w-full text-[10px] px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-200 font-mono"
-          autoFocus
+          placeholder="...или постави URL на снимка"
+          className="w-full text-[10px] px-2 py-1 mt-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-200 font-mono"
         />
       )}
     </div>
