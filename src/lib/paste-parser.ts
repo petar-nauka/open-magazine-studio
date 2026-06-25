@@ -20,6 +20,7 @@ export interface ContentBlock {
     imageHeight?: number;
     imageAspect?: 'landscape' | 'portrait' | 'square';
     span?: 'column' | 'full';
+    imageSize?: 'sm' | 'md' | 'lg' | 'wide' | 'full';
     adMode?: 'column' | 'full' | 'page';
     href?: string;
     originalSrc?: string;
@@ -27,13 +28,29 @@ export interface ContentBlock {
   };
 }
 
-// How wide an image renders in the two-column body: 'column' (one column) or
-// 'full' (spanning both). When the user has not chosen explicitly, fall back to
-// a smart default by aspect — portrait stays in-column (tall images that span
-// full width waste space and force page breaks), landscape/square span full.
+// How wide a block renders in the two-column body: 'column' (one column) or
+// 'full' (spanning both). An explicit choice always wins. Otherwise images get
+// a smart default by aspect — portrait stays in-column (tall full-width images
+// waste space and force page breaks), landscape/square span full — while text
+// and everything else default to flowing within a single column.
 export function effectiveSpan(block: ContentBlock): 'column' | 'full' {
   if (block.metadata.span) return block.metadata.span;
-  return block.metadata.imageAspect === 'portrait' ? 'column' : 'full';
+  if (block.type === 'image') {
+    return block.metadata.imageAspect === 'portrait' ? 'column' : 'full';
+  }
+  return 'column';
+}
+
+// An image picks one of five sizes. sm/md/lg flow in one column with growing
+// height caps. 'wide' spans both columns but is height-capped and centred — a
+// middle ground that fits a shallow leftover space instead of jumping to a new
+// page. 'full' spans both columns at natural height (banners/infographics).
+// Falls back to the legacy span, then a guess by aspect.
+export function effectiveImageSize(block: ContentBlock): 'sm' | 'md' | 'lg' | 'wide' | 'full' {
+  if (block.metadata.imageSize) return block.metadata.imageSize;
+  if (block.metadata.span === 'full') return 'full';
+  if (block.metadata.span === 'column') return 'md';
+  return block.metadata.imageAspect === 'portrait' ? 'md' : 'full';
 }
 
 export interface ParsedArticle {

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { DocBlock } from '../lib/document-model';
-import { effectiveSpan, type RichSegment } from '../lib/paste-parser';
+import { effectiveSpan, effectiveImageSize, type RichSegment } from '../lib/paste-parser';
 import type { Align } from '../design-system/alignment';
 
 // Render bold/italic segments as inline markup. Falls back to plain text when
@@ -55,8 +55,11 @@ export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; al
             return <Bullet key={b.id} content={b.content} align={a} />;
           case 'pull_quote':
             return <p className="pull-quote" key={b.id} style={a ? { textAlign: a } : undefined}>{b.content}</p>;
-          case 'image':
-            return <img className={effectiveSpan(b) === 'full' ? 'full' : 'inline'} key={b.id} src={b.content} alt="" />;
+          case 'image': {
+            const size = effectiveImageSize(b);
+            const cls = size === 'full' ? 'full' : size === 'wide' ? 'wide' : `inline size-${size}`;
+            return <img className={cls} key={b.id} src={b.content} alt="" />;
+          }
           case 'ad': {
             // Advert size: 'page' (own sheet), 'column' (within one column) or
             // 'full' (banner spanning both columns — the default; also where
@@ -84,8 +87,10 @@ export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; al
             if (isLead) leadUsed = true;
             const useDropCap = isLead && dropCap && !!b.content;
             const segs = b.metadata.richSegments;
+            const cls = [useDropCap ? 'lead' : '', effectiveSpan(b) === 'full' ? 'text-full' : '']
+              .filter(Boolean).join(' ') || undefined;
             return (
-              <p className={useDropCap ? 'lead' : undefined} key={b.id} style={a ? { textAlign: a } : undefined}>
+              <p className={cls} key={b.id} style={a ? { textAlign: a } : undefined}>
                 {useDropCap
                   ? (<><span className="dropcap">{b.content.slice(0, 1)}</span>{renderInline(segs ? withoutFirstChar(segs) : undefined, b.content.slice(1))}</>)
                   : renderInline(segs, b.content)}

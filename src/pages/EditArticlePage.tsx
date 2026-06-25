@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Download, Layers, Save, Loader2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Download, Layers, Save, Loader2, MessageSquare, BookOpen } from 'lucide-react';
 import { MagazinePreviewFrame, type MagazinePreviewFrameHandle } from '../magazine/MagazinePreviewFrame';
 import { articleFromParsed, findTitleBlock } from '../lib/document-model';
 import { ArticleSidebar } from '../components/ArticleSidebar';
@@ -50,6 +50,9 @@ export function EditArticlePage() {
       setDbTitle(val);
     }
   };
+
+  // The issue (брой) this article belongs to, for navigating back to it.
+  const issue = categories.find((c) => c.id === categoryId);
 
   const previewRef = useRef<MagazinePreviewFrameHandle>(null);
   const previewDoc = useMemo(
@@ -178,6 +181,19 @@ export function EditArticlePage() {
               <ArrowLeft className="w-4 h-4" />
               Всички броеве
             </Link>
+            {issue && (
+              <>
+                <div className="h-5 w-px bg-gray-200" />
+                <Link
+                  to={`/issue/${issue.id}`}
+                  title="Към броя — добави, редактирай или свали целия брой"
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {issue.issue_number ? `Брой ${issue.issue_number} · ` : ''}{issue.name}
+                </Link>
+              </>
+            )}
             <div className="h-5 w-px bg-gray-200" />
             <input
               type="text"

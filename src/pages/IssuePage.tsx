@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2, Copy, Archive } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
-import { loadIssue, setIssueCover, nextSortOrder, type Issue } from '../lib/issues';
+import {
+  loadIssue, setIssueCover, nextSortOrder, loadAllIssues,
+  archiveArticleFromIssue, duplicateArticleToIssue, type Issue,
+} from '../lib/issues';
 import {
   loadInserts, addInsert, deleteInsert, reorderIssueItems, mergeIssueItems, type IssueItem,
 } from '../lib/inserts';
@@ -13,6 +16,8 @@ export function IssuePage() {
   const navigate = useNavigate();
   const [issue, setIssue] = useState<Issue | null>(null);
   const [items, setItems] = useState<IssueItem[]>([]);
+  const [allIssues, setAllIssues] = useState<Issue[]>([]);
+  const [dupMenuFor, setDupMenuFor] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const imgInput = useRef<HTMLInputElement>(null);
   const pdfInput = useRef<HTMLInputElement>(null);
@@ -20,14 +25,35 @@ export function IssuePage() {
 
   const refresh = useCallback(() => {
     if (!id) return;
-    Promise.all([loadIssue(id), loadInserts(id)])
-      .then(([{ issue, articles }, inserts]) => {
+    Promise.all([loadIssue(id), loadInserts(id), loadAllIssues()])
+      .then(([{ issue, articles }, inserts, all]) => {
         setIssue(issue);
         setItems(mergeIssueItems(articles, inserts));
+        setAllIssues(all);
       })
       .catch((e) => { console.error('Неуспешно зареждане на броя', e); });
   }, [id]);
   useEffect(refresh, [refresh]);
+
+  const handleArchive = async (articleId: string) => {
+    if (!window.confirm('Да архивирам ли статията? Премахва се от броя, но остава в системата (Без категория).')) return;
+    try {
+      await archiveArticleFromIssue(articleId);
+      refresh();
+    } catch (e) {
+      alert('Грешка при архивиране: ' + String(e));
+    }
+  };
+
+  const handleDuplicate = async (articleId: string, targetCategoryId: string) => {
+    setDupMenuFor(null);
+    try {
+      await duplicateArticleToIssue(articleId, targetCategoryId);
+      refresh();
+    } catch (e) {
+      alert('Грешка при дублиране: ' + String(e));
+    }
+  };
 
   const move = async (itemId: string, dir: 'up' | 'down') => {
     try {
@@ -147,6 +173,28 @@ export function IssuePage() {
                 <>
                   <button onClick={() => navigate(`/edit/${it.id}`)} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50">Отвори</button>
                   <button onClick={() => window.open(`/render?id=${it.id}`, '_blank')} className="px-3 py-1.5 text-sm text-[#007daa] hover:bg-gray-50 rounded flex items-center gap-1"><Download className="w-3.5 h-3.5" /> PDF</button>
+                  <div className="relative">
+                    <button onClick={() => setDupMenuFor(dupMenuFor === it.id ? null : it.id)}
+                      title="Дублирай в друг брой"
+                      className="px-2 py-1.5 text-sm text-gray-500 hover:bg-gray-100 rounded flex items-center gap-1"><Copy className="w-3.5 h-3.5" /></button>
+                    {dupMenuFor === it.id && (
+                      <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[200px]">
+                        <div className="px-3 py-1 text-[10px] text-gray-400 uppercase tracking-wider">Дублирай в брой</div>
+                        {allIssues.filter((iss) => iss.id !== issue.id).map((iss) => (
+                          <button key={iss.id} onClick={() => handleDuplicate(it.id, iss.id)}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 truncate">
+                            {iss.issue_number ? `Брой ${iss.issue_number} · ` : ''}{iss.name}
+                          </button>
+                        ))}
+                        {allIssues.filter((iss) => iss.id !== issue.id).length === 0 && (
+                          <div className="px-3 py-1.5 text-xs text-gray-400">Няма други броеве</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => handleArchive(it.id)}
+                    title="Архивирай (премахни от броя)"
+                    className="px-2 py-1.5 text-sm text-gray-500 hover:text-amber-700 hover:bg-amber-50 rounded flex items-center gap-1"><Archive className="w-3.5 h-3.5" /></button>
                 </>
               ) : (
                 <button onClick={() => removeAd(it.id)} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Изтрий</button>

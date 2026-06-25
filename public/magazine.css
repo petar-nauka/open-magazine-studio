@@ -28,6 +28,10 @@
 
 .magazine p { margin: 0 0 .6em; }
 
+/* A body paragraph the user set to full width spans both columns (e.g. a caption
+   or intro under a full-width image). */
+.magazine .article-body p.text-full { column-span: all; }
+
 /* Coloured drop-cap on the first body paragraph. Rendered as an explicit
    <span class="dropcap"> rather than ::first-letter: Paged.js does not apply
    ::first-letter to its paginated (printed) output, only to the hidden source. */
@@ -49,12 +53,24 @@
 .magazine p.bullet { padding-left: 1em; text-indent: -1em; }
 .magazine p.bullet strong { color: var(--accent); }
 
-/* In-column images: capped height keeps tall (portrait) images from being
-   pushed whole onto the next column and leaving a gap. width:auto + max-width
-   preserves aspect ratio; narrower-than-column images centre. */
+/* In-column images: capped height keeps tall images from being pushed whole
+   onto the next column and leaving a gap. width:auto + max-width preserves
+   aspect ratio; narrower-than-column images centre. The height cap comes from
+   the size class (sm/md/lg) so the user can shrink an image to fit. */
 .magazine img.inline { display: block; width: auto; height: auto;
-  max-width: 100%; max-height: 85mm; margin: .4em auto .6em; border-radius: 2px;
+  max-width: 100%; margin: .4em auto .6em; border-radius: 2px;
   break-inside: avoid; }
+.magazine img.inline.size-sm { max-height: 50mm; }
+.magazine img.inline.size-md { max-height: 85mm; }
+.magazine img.inline.size-lg { max-height: 120mm; }
+
+/* 'Wide': spans both columns but height-capped and centred. width:auto lets the
+   height cap shrink it below the full measure, so a landscape photo becomes a
+   wider-than-column, shallow block that fits leftover space without jumping to
+   a new page. (For banners/infographics that must fill the width, use 'full'.) */
+.magazine img.wide { display: block; column-span: all;
+  width: auto; height: auto; max-width: 100%; max-height: 80mm;
+  margin: .5em auto .6em; border-radius: 2px; break-inside: avoid; }
 
 /* Full-width images span both columns (landscape/banner shots, infographics).
    width:100% fills the whole text measure; height:auto keeps the aspect ratio.

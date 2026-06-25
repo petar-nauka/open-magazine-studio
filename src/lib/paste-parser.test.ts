@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseHtmlContent, effectiveSpan, type ContentBlock } from './paste-parser';
+import { parseHtmlContent, effectiveSpan, effectiveImageSize, type ContentBlock } from './paste-parser';
 
 function imageBlock(meta: ContentBlock['metadata']): ContentBlock {
   return { id: 'x', type: 'image', content: 'a.jpg', position: 0, metadata: meta };
@@ -19,6 +19,32 @@ describe('effectiveSpan', () => {
     expect(effectiveSpan(imageBlock({ imageAspect: 'landscape' }))).toBe('full');
     expect(effectiveSpan(imageBlock({ imageAspect: 'square' }))).toBe('full');
     expect(effectiveSpan(imageBlock({}))).toBe('full');
+  });
+
+  it('defaults text blocks to a single column, full only when chosen', () => {
+    const text = (meta: ContentBlock['metadata']): ContentBlock =>
+      ({ id: 't', type: 'text', content: 'x', position: 0, metadata: meta });
+    expect(effectiveSpan(text({}))).toBe('column');
+    expect(effectiveSpan(text({ span: 'full' }))).toBe('full');
+  });
+});
+
+describe('effectiveImageSize', () => {
+  it('honours an explicit size', () => {
+    expect(effectiveImageSize(imageBlock({ imageSize: 'sm' }))).toBe('sm');
+    expect(effectiveImageSize(imageBlock({ imageSize: 'lg', imageAspect: 'landscape' }))).toBe('lg');
+    expect(effectiveImageSize(imageBlock({ imageSize: 'wide', imageAspect: 'landscape' }))).toBe('wide');
+  });
+
+  it('migrates the legacy span (full→full, column→md)', () => {
+    expect(effectiveImageSize(imageBlock({ span: 'full' }))).toBe('full');
+    expect(effectiveImageSize(imageBlock({ span: 'column' }))).toBe('md');
+  });
+
+  it('guesses by aspect when nothing is set (portrait→md, landscape→full)', () => {
+    expect(effectiveImageSize(imageBlock({ imageAspect: 'portrait' }))).toBe('md');
+    expect(effectiveImageSize(imageBlock({ imageAspect: 'landscape' }))).toBe('full');
+    expect(effectiveImageSize(imageBlock({}))).toBe('full');
   });
 });
 

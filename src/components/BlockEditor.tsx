@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { type ContentBlock, effectiveSpan } from '../lib/paste-parser';
+import { type ContentBlock, effectiveImageSize } from '../lib/paste-parser';
 import {
   Image,
   Type,
@@ -202,6 +202,27 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
                 onActivate={() => setActiveBlockId(block.id)}
                 onChange={(content) => updateBlock(block.id, { content })}
               />
+            )}
+            {block.type === 'text' && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className="text-[10px] text-gray-400 shrink-0">Ширина:</span>
+                <div className="flex rounded border border-gray-200 overflow-hidden text-[10px]">
+                  {(['column', 'full'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => updateBlock(block.id, { metadata: { ...block.metadata, span: opt } })}
+                      className={`px-2 py-0.5 transition-colors ${
+                        (block.metadata.span ?? 'column') === opt
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-500 hover:bg-gray-100'
+                      }`}
+                    >
+                      {opt === 'column' ? '1 колона' : '2 колони'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -425,20 +446,24 @@ function ImageBlockEditor({
       )}
       {block.content && block.type !== 'ad' && (
         <div className="flex items-center gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
-          <span className="text-[10px] text-gray-400 shrink-0">Ширина:</span>
+          <span className="text-[10px] text-gray-400 shrink-0">Размер:</span>
           <div className="flex rounded border border-gray-200 overflow-hidden text-[10px]">
-            {(['column', 'full'] as const).map((opt) => (
+            {(['sm', 'md', 'lg', 'wide', 'full'] as const).map((opt) => (
               <button
                 key={opt}
                 type="button"
-                onClick={() => onChange({ metadata: { ...block.metadata, span: opt } })}
-                className={`px-2 py-0.5 transition-colors ${
-                  effectiveSpan(block) === opt
+                onClick={() => onChange({ metadata: { ...block.metadata, imageSize: opt } })}
+                className={`px-1.5 py-0.5 transition-colors ${
+                  effectiveImageSize(block) === opt
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-500 hover:bg-gray-100'
                 }`}
+                title={
+                  opt === 'wide' ? 'По-широка от колона, центрирана, ниска — влиза в плитко място'
+                    : opt === 'full' ? 'Цяла ширина (за банери/инфографики)' : undefined
+                }
               >
-                {opt === 'column' ? '1 колона' : '2 колони'}
+                {opt === 'sm' ? 'Малка' : opt === 'md' ? 'Средна' : opt === 'lg' ? 'Голяма' : opt === 'wide' ? 'Широка' : 'Цяла'}
               </button>
             ))}
           </div>

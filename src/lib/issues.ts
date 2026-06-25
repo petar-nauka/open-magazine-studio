@@ -47,3 +47,54 @@ export async function setIssueCover(id: string, field: 'cover_image_url' | 'cove
   const { error } = await supabase.from('mag_pdf_categories').update({ [field]: dataUrl }).eq('id', id);
   if (error) throw error;
 }
+
+export async function loadAllIssues(): Promise<Issue[]> {
+  const { data } = await supabase
+    .from('mag_pdf_categories')
+    .select('id, name, issue_number, cover_image_url, created_at')
+    .order('issue_number', { ascending: false, nullsFirst: false });
+  return (data ?? []) as Issue[];
+}
+
+// Detach an article from its issue without deleting it: it stays in the system
+// (visible under "Без категория") and can be re-added to any issue later.
+export async function archiveArticleFromIssue(articleId: string): Promise<void> {
+  const { error } = await supabase
+    .from('mag_pdf_articles')
+    .update({ category_id: null, updated_at: new Date().toISOString() })
+    .eq('id', articleId);
+  if (error) throw error;
+}
+
+// Deep-copy an article (row + all its content blocks) into another issue. The
+// original stays untouched; the copy lands at the end of the target issue.
+export async function duplicateArticleToIssue(articleId: string, targetCategoryId: string): Promise<void> {
+  const [articleRes, blocksRes, targetRes] = await Promise.all([
+    supabase.from('mag_pdf_articles').select('title, author, layout_config, status, tags').eq('id', articleId).maybeSingle(),
+    supabase.from('mag_pdf_content_blocks').select('type, content, position, metadata').eq('article_id', articleId).order('position'),
+    supabase.from('mag_pdf_articles').select('sort_order').eq('category_id', targetCategoryId),
+  ]);
+  if (articleRes.error || !articleRes.data) throw articleRes.error ?? new Error('Изходната статия не е намерена');
+  const src = articleRes.data;
+
+  const { data: newArticle, error: insErr } = await supabase
+    .from('mag_pdf_articles')
+    .insert({
+      title: src.title,
+      author: src.author,
+      layout_config: src.layout_config,
+      status: src.status ?? 'draft',
+      tags: src.tags,
+      category_id: targetCategoryId,
+      sort_order: nextSortOrder(targetRes.data ?? []),
+    })
+    .select('id')
+    .maybeSingle();
+  if (insErr || !newArticle) throw insErr ?? new Error('Дублирането се провали');
+
+  const blocks = (blocksRes.data ?? []).map((b) => ({ article_id: newArticle.id, ...b }));
+  if (blocks.length) {
+    const { error: blkErr } = await supabase.from('mag_pdf_content_blocks').insert(blocks);
+    if (blkErr) throw blkErr;
+  }
+}
