@@ -38,12 +38,19 @@ export function articleFromParsed(
   const firstImage = blocks.find((b) => b.type === 'image');
   const titleBlock = findTitleBlock(parsed.blocks);
 
+  // Opener image: 'none' = explicitly no cover image (every photo stays in the
+  // body); a URL = that image; undefined = auto (first image becomes the cover
+  // and is dropped from the body so it isn't shown twice).
+  const openerImage = opts.openerImage === 'none'
+    ? undefined
+    : (opts.openerImage ?? firstImage?.content);
+
   return {
     title: titleBlock?.content.trim() || parsed.title,
     author: opts.author ?? '',
     accent: opts.accent ?? 'teal',
     align: opts.align ?? 'justify',
-    openerImage: opts.openerImage ?? firstImage?.content,
+    openerImage,
     dropCap: opts.dropCap ?? true,
     blocks,
   };

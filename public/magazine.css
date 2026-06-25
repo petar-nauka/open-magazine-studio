@@ -110,7 +110,11 @@
 
 /* Opener page filling the A4 content area (page height 297mm minus 18mm+16mm margins).
    A dark fallback colour keeps the white title legible when the image is missing/transparent. */
-.magazine .opener { position: relative; width: 100%; height: calc(297mm - 34mm); break-after: page;
+/* Article opener: its own full page. break-before keeps it from starting in
+   the leftover space of the previous article (which made the opener image bleed
+   onto the bottom of the previous page); break-inside stops it splitting. */
+.magazine .opener { position: relative; width: 100%; height: calc(297mm - 34mm);
+  break-before: page; break-after: page; break-inside: avoid;
   background-color: #222; background-size: cover; background-position: center; color: #fff; }
 .magazine .opener .scrim { position: absolute; inset: 0;
   background: linear-gradient(to top, rgba(0,0,0,.65) 0%, rgba(0,0,0,0) 45%); }
@@ -127,6 +131,21 @@
    (top-left/top-right) is intentionally left unchanged. */
 .magazine .opener, .toc, .ad-plate { page: nofolio; }
 @page nofolio { @bottom-center { content: none; } }
+
+/* The issue cover is the whole sheet: no margins, no running header, no folio —
+   the uploaded image fills the page edge to edge. */
+.magazine .cover {
+  page: cover;
+  width: 210mm; height: 297mm;
+  break-before: page; break-after: page; break-inside: avoid;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+}
+@page cover {
+  margin: 0;
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-center { content: none; }
+}
 
 /* Full-page advert: whole image fit (contain) on a white sheet, no crop. */
 .ad-plate {

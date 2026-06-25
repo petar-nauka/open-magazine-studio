@@ -22,6 +22,13 @@ describe('articleFromParsed — title source', () => {
     expect(doc.title).toBe('Фолбек заглавие');
   });
 
+  it('opener "none" leaves every image in the body (no auto cover)', () => {
+    const blocks = [{ id: 'i', type: 'image' as const, content: 'first.jpg', position: 0, metadata: {} }];
+    expect(articleFromParsed({ title: 'T', blocks }, { openerImage: 'none' }).openerImage).toBeUndefined();
+    // default (auto) still promotes the first image to the cover
+    expect(articleFromParsed({ title: 'T', blocks }).openerImage).toBe('first.jpg');
+  });
+
   it('findTitleBlock ignores a leading non-title heading (level 2)', () => {
     const blocks = [
       { id: 'h2', type: 'heading' as const, content: 'Подзаглавие', position: 0, metadata: { level: 2 } },

@@ -69,9 +69,7 @@ export function RenderPage() {
         <div ref={sourceRef} style={{ display: 'none' }}>
           {coverImage && (
             <div className="magazine">
-              <section className="opener" style={{ backgroundImage: `url(${coverImage})` }}>
-                <div className="scrim" />
-              </section>
+              <section className="cover" style={{ backgroundImage: `url(${coverImage})` }} />
             </div>
           )}
           {issueId && tocEntries.length > 0 && <TableOfContents entries={tocEntries} />}

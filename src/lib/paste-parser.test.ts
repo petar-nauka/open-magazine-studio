@@ -36,15 +36,15 @@ describe('effectiveImageSize', () => {
     expect(effectiveImageSize(imageBlock({ imageSize: 'wide', imageAspect: 'landscape' }))).toBe('wide');
   });
 
-  it('migrates the legacy span (full→full, column→md)', () => {
+  it('honours legacy span=full, otherwise defaults to in-column medium', () => {
     expect(effectiveImageSize(imageBlock({ span: 'full' }))).toBe('full');
     expect(effectiveImageSize(imageBlock({ span: 'column' }))).toBe('md');
   });
 
-  it('guesses by aspect when nothing is set (portrait→md, landscape→full)', () => {
+  it('defaults to in-column (md) regardless of aspect — no auto full width', () => {
     expect(effectiveImageSize(imageBlock({ imageAspect: 'portrait' }))).toBe('md');
-    expect(effectiveImageSize(imageBlock({ imageAspect: 'landscape' }))).toBe('full');
-    expect(effectiveImageSize(imageBlock({}))).toBe('full');
+    expect(effectiveImageSize(imageBlock({ imageAspect: 'landscape' }))).toBe('md');
+    expect(effectiveImageSize(imageBlock({}))).toBe('md');
   });
 });
 

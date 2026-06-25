@@ -48,6 +48,20 @@ export async function uploadImage(blob: Blob): Promise<string> {
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+// Upload a file as-is to Storage and return its public URL. Used for things we
+// can't (or shouldn't) re-encode — e.g. a cover PDF. Storing such files as data
+// URLs in the DB blows past the server request-size limit.
+export async function uploadRawFile(file: File): Promise<string> {
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+  const path = `cover/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (error) throw error;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
 // Read a picked File into a base64 data URL (for compressDataUrl + uploadImage).
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

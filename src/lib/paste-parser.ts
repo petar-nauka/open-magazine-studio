@@ -45,12 +45,17 @@ export function effectiveSpan(block: ContentBlock): 'column' | 'full' {
 // height caps. 'wide' spans both columns but is height-capped and centred — a
 // middle ground that fits a shallow leftover space instead of jumping to a new
 // page. 'full' spans both columns at natural height (banners/infographics).
-// Falls back to the legacy span, then a guess by aspect.
+//
+// Default is in-column (medium). We deliberately do NOT auto-pick full width
+// for landscape images: an article with several landscape photos would turn
+// every one into a column-spanning block that can't fit the remaining space,
+// fragmenting the layout into big gaps. The user opts into 'wide'/'full' per
+// image when a banner/infographic should span the page. Legacy span='full' is
+// still honoured so previously full-width images keep their look.
 export function effectiveImageSize(block: ContentBlock): 'sm' | 'md' | 'lg' | 'wide' | 'full' {
   if (block.metadata.imageSize) return block.metadata.imageSize;
   if (block.metadata.span === 'full') return 'full';
-  if (block.metadata.span === 'column') return 'md';
-  return block.metadata.imageAspect === 'portrait' ? 'md' : 'full';
+  return 'md';
 }
 
 export interface ParsedArticle {

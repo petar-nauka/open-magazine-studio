@@ -14,8 +14,8 @@ export function OpenerImagePicker({ images, value, onChange }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const effective = value ?? images[0]?.url;
-  const isUploaded = value !== undefined && !images.some((i) => i.url === value);
+  const effective = value === 'none' ? undefined : (value ?? images[0]?.url);
+  const isUploaded = value !== undefined && value !== 'none' && !images.some((i) => i.url === value);
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -46,9 +46,16 @@ export function OpenerImagePicker({ images, value, onChange }: Props) {
         <button
           onClick={() => onChange(undefined)}
           className={`px-2 py-1 text-[10px] rounded border transition-colors ${value === undefined ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-          title="Автоматично — първата снимка в статията"
+          title="Автоматично — първата снимка в статията става корица (и се маха от текста)"
         >
           Авто
+        </button>
+        <button
+          onClick={() => onChange('none')}
+          className={`px-2 py-1 text-[10px] rounded border transition-colors ${value === 'none' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          title="Без снимка на корицата — всички снимки остават в текста"
+        >
+          Без снимка
         </button>
         {images.map((img, i) => (
           <button

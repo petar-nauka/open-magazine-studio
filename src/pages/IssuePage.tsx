@@ -9,7 +9,7 @@ import {
 import {
   loadInserts, addInsert, deleteInsert, reorderIssueItems, mergeIssueItems, type IssueItem,
 } from '../lib/inserts';
-import { compressDataUrl, uploadImage } from '../lib/image-upload';
+import { compressDataUrl, uploadImage, uploadRawFile } from '../lib/image-upload';
 
 export function IssuePage() {
   const { id } = useParams<{ id: string }>();
@@ -70,10 +70,26 @@ export function IssuePage() {
 
   const onCover = async (file: File | undefined, field: 'cover_image_url' | 'cover_pdf_url') => {
     if (!file || !id) return;
-    await setIssueCover(id, field, await fileToDataUrl(file));
-    if (imgInput.current) imgInput.current.value = '';
-    if (pdfInput.current) pdfInput.current.value = '';
-    refresh();
+    setUploading(true);
+    try {
+      // Upload to Storage and store only the URL: a base64 data URL in the DB
+      // exceeds the server request-size limit, so the cover silently failed.
+      const url = field === 'cover_pdf_url'
+        ? await uploadRawFile(file)
+        : await uploadImage(await compressDataUrl(await fileToDataUrl(file), 2400, 0.9));
+      await setIssueCover(id, field, url);
+      refresh();
+    } catch (e) {
+      const msg = String(e);
+      const hint = /fetch|413|large|payload/i.test(msg)
+        ? '\n\nВероятно файлът е твърде голям за сървъра (лимит ~1 MB). Опитай по-малък файл или вдигни лимита за качване на сървъра.'
+        : '';
+      alert('Грешка при качване на корицата: ' + msg + hint);
+    } finally {
+      setUploading(false);
+      if (imgInput.current) imgInput.current.value = '';
+      if (pdfInput.current) pdfInput.current.value = '';
+    }
   };
 
   const onAd = async (file: File | undefined) => {
