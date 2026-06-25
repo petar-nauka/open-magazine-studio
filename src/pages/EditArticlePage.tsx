@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Download, Layers, Save, Loader2, MessageSquare } from 'lucide-react';
 import { MagazinePreviewFrame, type MagazinePreviewFrameHandle } from '../magazine/MagazinePreviewFrame';
-import { articleFromParsed } from '../lib/document-model';
+import { articleFromParsed, findTitleBlock } from '../lib/document-model';
 import { ArticleSidebar } from '../components/ArticleSidebar';
 import { BlockEditor } from '../components/BlockEditor';
 import { AIChatPanel } from '../components/AIChatPanel';
@@ -23,7 +23,9 @@ export function EditArticlePage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [title, setTitle] = useState('');
+  // Fallback title for articles that have no title heading; normally the title
+  // is read from (and written to) the H1 block so it never drifts from the cover.
+  const [dbTitle, setDbTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [blocks, setBlocks] = useState<ContentBlock[]>([]);
   const [status, setStatus] = useState('draft');
@@ -36,6 +38,18 @@ export function EditArticlePage() {
   const [align, setAlign] = useState<Align>('justify');
   const [dropCap, setDropCap] = useState(true);
   const [openerImage, setOpenerImage] = useState<string | undefined>(undefined);
+
+  // Title is the H1 block's text when present (single source of truth shared
+  // with the cover), else the standalone fallback.
+  const titleBlock = findTitleBlock(blocks);
+  const title = titleBlock?.content ?? dbTitle;
+  const setTitle = (val: string) => {
+    if (titleBlock) {
+      setBlocks((prev) => prev.map((b) => (b.id === titleBlock.id ? { ...b, content: val } : b)));
+    } else {
+      setDbTitle(val);
+    }
+  };
 
   const previewRef = useRef<MagazinePreviewFrameHandle>(null);
   const previewDoc = useMemo(
@@ -57,7 +71,7 @@ export function EditArticlePage() {
 
       if (articleRes.data) {
         const article = articleRes.data;
-        setTitle(article.title);
+        setDbTitle(article.title);
         setAuthor(article.author || '');
         setStatus(article.status);
         setTags(article.tags || []);
@@ -162,7 +176,7 @@ export function EditArticlePage() {
               className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Архив
+              Всички броеве
             </Link>
             <div className="h-5 w-px bg-gray-200" />
             <input

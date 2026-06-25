@@ -7,7 +7,8 @@ export type BlockRole =
   | 'bullet'
   | 'pull_quote'
   | 'references'
-  | 'image';
+  | 'image'
+  | 'ad';
 
 const SOURCES_RE = /^(използвани\s+източници|източници|литература|references)\s*:?\s*$/i;
 
@@ -25,6 +26,7 @@ export function detectRole(block: ContentBlock, all: ContentBlock[], index: numb
   }
 
   if (block.type === 'image') return 'image';
+  if (block.type === 'ad') return 'ad';
   if (block.type === 'pull_quote') return 'pull_quote';
 
   if (block.type === 'heading') {

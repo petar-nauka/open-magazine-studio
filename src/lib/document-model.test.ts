@@ -1,6 +1,34 @@
 import { describe, it, expect } from 'vitest';
-import { articleFromParsed, type ArticleDoc } from './document-model';
+import { articleFromParsed, findTitleBlock, type ArticleDoc } from './document-model';
 import type { ParsedArticle } from './paste-parser';
+
+describe('articleFromParsed — title source', () => {
+  it('reads the title from the H1 block, not a drifted parsed.title', () => {
+    const doc = articleFromParsed({
+      title: 'СТАРО РАЗСИНХРОНИЗИРАНО ЗАГЛАВИЕ',
+      blocks: [
+        { id: 'h', type: 'heading', content: 'Правилното заглавие', position: 0, metadata: { level: 1 } },
+        { id: 't', type: 'text', content: 'Тяло на статията.', position: 1, metadata: {} },
+      ],
+    });
+    expect(doc.title).toBe('Правилното заглавие');
+  });
+
+  it('falls back to parsed.title when there is no H1 block', () => {
+    const doc = articleFromParsed({
+      title: 'Фолбек заглавие',
+      blocks: [{ id: 't', type: 'text', content: 'Само тяло.', position: 0, metadata: {} }],
+    });
+    expect(doc.title).toBe('Фолбек заглавие');
+  });
+
+  it('findTitleBlock ignores a leading non-title heading (level 2)', () => {
+    const blocks = [
+      { id: 'h2', type: 'heading' as const, content: 'Подзаглавие', position: 0, metadata: { level: 2 } },
+    ];
+    expect(findTitleBlock(blocks)).toBeUndefined();
+  });
+});
 
 const base: ParsedArticle = {
   title: 'T',

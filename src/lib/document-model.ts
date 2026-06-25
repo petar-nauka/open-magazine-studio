@@ -17,6 +17,15 @@ export interface ArticleDoc {
   blocks: DocBlock[];
 }
 
+// The article title lives in its first level-1 heading (the block that gets the
+// 'title' role). This is the single source of truth: the opener and any saved
+// title read it, so editing that heading updates the cover — no second copy to
+// drift out of sync.
+export function findTitleBlock(blocks: ContentBlock[]): ContentBlock | undefined {
+  const firstHeading = blocks.find((b) => b.type === 'heading');
+  return firstHeading && (firstHeading.metadata.level ?? 2) === 1 ? firstHeading : undefined;
+}
+
 export function articleFromParsed(
   parsed: ParsedArticle,
   opts: { author?: string; accent?: AccentName | string; align?: Align; dropCap?: boolean; openerImage?: string } = {}
@@ -27,9 +36,10 @@ export function articleFromParsed(
   }));
 
   const firstImage = blocks.find((b) => b.type === 'image');
+  const titleBlock = findTitleBlock(parsed.blocks);
 
   return {
-    title: parsed.title,
+    title: titleBlock?.content.trim() || parsed.title,
     author: opts.author ?? '',
     accent: opts.accent ?? 'teal',
     align: opts.align ?? 'justify',

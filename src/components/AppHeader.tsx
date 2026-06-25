@@ -11,7 +11,7 @@ export function AppHeader({ right }: { right?: React.ReactNode }) {
         </Link>
         <div className="flex items-center gap-2">
           {right}
-          <Link to="/archive" className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"><Archive className="w-4 h-4" /> Архив</Link>
+          <Link to="/archive" className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"><Archive className="w-4 h-4" /> Всички броеве</Link>
           <Link to="/settings" className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"><Settings className="w-4 h-4" /> Настройки</Link>
         </div>
       </div>

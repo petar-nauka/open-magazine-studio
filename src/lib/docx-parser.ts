@@ -60,7 +60,7 @@ function extractImages(entries: ZipEntry[]): Map<string, string> {
   return imageMap;
 }
 
-function docxXmlToHtml(xml: string, images: Map<string, string>): string {
+export function docxXmlToHtml(xml: string, images: Map<string, string>): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xml, 'application/xml');
 
@@ -112,7 +112,11 @@ function docxXmlToHtml(xml: string, images: Map<string, string>): string {
     } else if (styleVal.match(/quote/i)) {
       htmlParts.push(`<blockquote>${escapeHtml(text)}</blockquote>`);
     } else {
-      htmlParts.push(`<p>${escapeHtml(text)}</p>`);
+      // Body paragraph: preserve per-run bold/italic as inline-styled spans so
+      // parseHtmlContent can pick them up. Fall back to plain text if a
+      // paragraph somehow has no runs.
+      const inner = runsToHtml(para) || escapeHtml(text);
+      htmlParts.push(`<p>${inner}</p>`);
     }
   }
 
@@ -123,6 +127,40 @@ function docxXmlToHtml(xml: string, images: Map<string, string>): string {
   }
 
   return htmlParts.join('\n');
+}
+
+// A run property like <w:b/> means "on"; <w:b w:val="false"/> (or "0") means
+// "off". Anything else with the element present counts as on.
+function isRunPropOn(rPr: Element | null, localName: string): boolean {
+  if (!rPr) return false;
+  const el = Array.from(rPr.children).find((c) => c.localName === localName);
+  if (!el) return false;
+  const val = el.getAttribute('w:val') ?? el.getAttribute('val');
+  if (val === null) return true;
+  return val !== 'false' && val !== '0';
+}
+
+// Convert a paragraph's runs (<w:r>) into inline HTML, wrapping bold/italic runs
+// in styled spans. Word stores character formatting per run, not per paragraph.
+function runsToHtml(para: Element): string {
+  const runs = para.getElementsByTagNameNS('*', 'r');
+  let html = '';
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    const textEls = run.getElementsByTagNameNS('*', 't');
+    let runText = '';
+    for (let j = 0; j < textEls.length; j++) {
+      runText += textEls[j].textContent || '';
+    }
+    if (!runText) continue;
+
+    const rPr = Array.from(run.children).find((c) => c.localName === 'rPr') || null;
+    let seg = escapeHtml(runText);
+    if (isRunPropOn(rPr, 'b')) seg = `<span style="font-weight:700">${seg}</span>`;
+    if (isRunPropOn(rPr, 'i')) seg = `<span style="font-style:italic">${seg}</span>`;
+    html += seg;
+  }
+  return html;
 }
 
 function escapeHtml(text: string): string {

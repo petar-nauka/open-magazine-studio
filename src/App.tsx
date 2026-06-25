@@ -7,7 +7,7 @@ import { AIChatPanel } from './components/AIChatPanel';
 import { MagazinePreviewFrame, type MagazinePreviewFrameHandle } from './magazine/MagazinePreviewFrame';
 import { ArticleSidebar } from './components/ArticleSidebar';
 import { type ParsedArticle, type ContentBlock } from './lib/paste-parser';
-import { articleFromParsed } from './lib/document-model';
+import { articleFromParsed, findTitleBlock } from './lib/document-model';
 import { uploadArticleImages } from './lib/image-upload';
 import { supabase } from './lib/supabase';
 import { nextSortOrder } from './lib/issues';
@@ -41,6 +41,9 @@ function App() {
     () => (article ? articleFromParsed(article, { author: articleAuthor, accent, align, dropCap, openerImage }) : null),
     [article, articleAuthor, accent, align, dropCap, openerImage]
   );
+
+  // Title comes from the H1 block so it matches the cover and what the user edits.
+  const articleTitle = article ? (findTitleBlock(article.blocks)?.content?.trim() || article.title) : '';
 
   useEffect(() => {
     loadCategories();
@@ -83,7 +86,7 @@ function App() {
         const { error } = await supabase
           .from('mag_pdf_articles')
           .update({
-            title: article.title,
+            title: articleTitle,
             author: articleAuthor || null,
             layout_config: layoutToSave,
             tags,
@@ -104,7 +107,7 @@ function App() {
         const { data: articleData, error: articleError } = await supabase
           .from('mag_pdf_articles')
           .insert({
-            title: article.title,
+            title: articleTitle,
             author: articleAuthor || null,
             layout_config: layoutToSave,
             status: 'draft',
@@ -189,22 +192,22 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
           <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3 group" title="Към началото">
               <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center">
                 <BookOpen className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-gray-900">Magazine Studio</h1>
+                <h1 className="text-lg font-bold text-gray-900 group-hover:text-gray-700 transition-colors">Magazine Studio</h1>
                 <p className="text-xs text-gray-500">Трансформирай статии в красив дизайн</p>
               </div>
-            </div>
+            </Link>
             <div className="flex items-center gap-2">
               <Link
                 to="/archive"
                 className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <Archive className="w-4 h-4" />
-                Архив
+                Всички броеве
               </Link>
               <Link
                 to="/settings/ai"
@@ -259,7 +262,7 @@ function App() {
             />
           </div>
         </main>
-        {toast && (<Toast message={toast} onClose={() => setToast(null)} actionLabel="Виж в архива" onAction={() => navigate('/archive')} />)}
+        {toast && (<Toast message={toast} onClose={() => setToast(null)} actionLabel="Виж всички броеве" onAction={() => navigate('/archive')} />)}
       </div>
     );
   }
@@ -278,7 +281,7 @@ function App() {
             </button>
             <div className="h-5 w-px bg-gray-200" />
             <h1 className="text-sm font-semibold text-gray-900 truncate max-w-[300px]">
-              {article?.title}
+              {articleTitle}
             </h1>
           </div>
 
@@ -372,7 +375,7 @@ function App() {
           onClose={() => setChatOpen(false)}
         />
       )}
-      {toast && (<Toast message={toast} onClose={() => setToast(null)} actionLabel="Виж в архива" onAction={() => navigate('/archive')} />)}
+      {toast && (<Toast message={toast} onClose={() => setToast(null)} actionLabel="Виж всички броеве" onAction={() => navigate('/archive')} />)}
     </div>
   );
 }

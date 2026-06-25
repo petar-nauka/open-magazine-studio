@@ -1,20 +1,39 @@
 import type { Align } from '../design-system/alignment';
 
+export interface RichSegment {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+}
+
 export interface ContentBlock {
   id: string;
-  type: 'heading' | 'text' | 'image' | 'pull_quote';
+  type: 'heading' | 'text' | 'image' | 'pull_quote' | 'ad';
   content: string;
   position: number;
   metadata: {
     level?: number;
     bold?: boolean;
     italic?: boolean;
+    richSegments?: RichSegment[];
     imageWidth?: number;
     imageHeight?: number;
     imageAspect?: 'landscape' | 'portrait' | 'square';
+    span?: 'column' | 'full';
+    adMode?: 'column' | 'full' | 'page';
+    href?: string;
     originalSrc?: string;
     align?: Align;
   };
+}
+
+// How wide an image renders in the two-column body: 'column' (one column) or
+// 'full' (spanning both). When the user has not chosen explicitly, fall back to
+// a smart default by aspect — portrait stays in-column (tall images that span
+// full width waste space and force page breaks), landscape/square span full.
+export function effectiveSpan(block: ContentBlock): 'column' | 'full' {
+  if (block.metadata.span) return block.metadata.span;
+  return block.metadata.imageAspect === 'portrait' ? 'column' : 'full';
 }
 
 export interface ParsedArticle {
@@ -35,6 +54,85 @@ function getImageAspect(width: number, height: number): 'landscape' | 'portrait'
   return 'square';
 }
 
+// Determine bold/italic for an element, given the flags inherited from its
+// ancestors. Inline `style` wins over the tag name, because Google Docs wraps
+// pasted content in <b style="font-weight:normal"> and similar — trusting the
+// tag alone would mark everything bold.
+function resolveFlags(
+  el: Element,
+  inherited: { bold: boolean; italic: boolean }
+): { bold: boolean; italic: boolean } {
+  let { bold, italic } = inherited;
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'b' || tag === 'strong') bold = true;
+  if (tag === 'i' || tag === 'em') italic = true;
+
+  const style = el.getAttribute('style') || '';
+  const fw = /font-weight\s*:\s*(\d+|bold|bolder|normal|lighter)/i.exec(style);
+  if (fw) {
+    const v = fw[1].toLowerCase();
+    bold = v === 'bold' || v === 'bolder' || parseInt(v, 10) >= 600;
+  }
+  const fs = /font-style\s*:\s*(italic|oblique|normal)/i.exec(style);
+  if (fs) {
+    italic = fs[1].toLowerCase() !== 'normal';
+  }
+  return { bold, italic };
+}
+
+// Walk a paragraph's DOM into a flat list of {text, bold, italic} segments,
+// merging adjacent runs that share the same formatting.
+function extractSegments(node: Node, inherited: { bold: boolean; italic: boolean }, out: RichSegment[]): void {
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const child = node.childNodes[i];
+    if (child.nodeType === Node.TEXT_NODE) {
+      const text = child.textContent || '';
+      if (!text) continue;
+      const last = out[out.length - 1];
+      if (last && !!last.bold === inherited.bold && !!last.italic === inherited.italic) {
+        last.text += text;
+      } else {
+        out.push({ text, bold: inherited.bold || undefined, italic: inherited.italic || undefined });
+      }
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      const flags = resolveFlags(child as Element, inherited);
+      extractSegments(child, flags, out);
+    }
+  }
+}
+
+// Build rich segments for a block; returns undefined when the paragraph carries
+// no formatting (so plain blocks stay lightweight).
+function buildRichSegments(el: Element): RichSegment[] | undefined {
+  const segments: RichSegment[] = [];
+  extractSegments(el, { bold: false, italic: false }, segments);
+  // Normalize whitespace-only leading/trailing handled by caller's trim of content;
+  // keep segments as-is but drop if nothing is actually formatted.
+  const hasFormatting = segments.some((s) => s.bold || s.italic);
+  if (!hasFormatting) return undefined;
+  return segments.filter((s) => s.text.length > 0);
+}
+
+// Google Docs wraps the whole pasted document in <b style="font-weight:normal">
+// (and browsers may keep block elements nested inside it). Hoist the children of
+// any top-level inline wrapper that contains block content, so the real
+// paragraphs become top-level and get parsed instead of silently dropped.
+const BLOCK_SELECTOR = 'p,div,h1,h2,h3,ul,ol,blockquote,table,img';
+function unwrapInlineWrappers(body: HTMLElement): void {
+  const INLINE = new Set(['B', 'I', 'EM', 'STRONG', 'FONT', 'A', 'SPAN']);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const child of Array.from(body.children)) {
+      if (INLINE.has(child.tagName) && child.querySelector(BLOCK_SELECTOR)) {
+        while (child.firstChild) body.insertBefore(child.firstChild, child);
+        body.removeChild(child);
+        changed = true;
+      }
+    }
+  }
+}
+
 export function parseHtmlContent(html: string): ParsedArticle {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
@@ -42,6 +140,7 @@ export function parseHtmlContent(html: string): ParsedArticle {
   let position = 0;
   let title = '';
 
+  unwrapInlineWrappers(doc.body);
   const elements = doc.body.children;
 
   for (let i = 0; i < elements.length; i++) {
@@ -98,14 +197,16 @@ export function parseHtmlContent(html: string): ParsedArticle {
             metadata: { level: 1 },
           });
         } else {
+          const richSegments = buildRichSegments(el);
           blocks.push({
             id: generateId(),
             type: 'text',
             content: text,
             position: position++,
             metadata: {
-              bold: el.querySelector('b, strong') !== null,
-              italic: el.querySelector('i, em') !== null,
+              bold: richSegments?.every((s) => s.bold) || undefined,
+              italic: richSegments?.every((s) => s.italic) || undefined,
+              richSegments,
             },
           });
         }

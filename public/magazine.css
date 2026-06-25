@@ -22,6 +22,7 @@
   column-count: 2;
   column-gap: 7mm;
   text-align: justify;
+  text-align-last: left; /* don't stretch the last line of a paragraph */
   hyphens: auto;
 }
 
@@ -48,9 +49,40 @@
 .magazine p.bullet { padding-left: 1em; text-indent: -1em; }
 .magazine p.bullet strong { color: var(--accent); }
 
-/* In-column images. */
-.magazine img.inline { width: 100%; height: auto; margin: .4em 0 .6em; border-radius: 2px;
+/* In-column images: capped height keeps tall (portrait) images from being
+   pushed whole onto the next column and leaving a gap. width:auto + max-width
+   preserves aspect ratio; narrower-than-column images centre. */
+.magazine img.inline { display: block; width: auto; height: auto;
+  max-width: 100%; max-height: 85mm; margin: .4em auto .6em; border-radius: 2px;
   break-inside: avoid; }
+
+/* Full-width images span both columns (landscape/banner shots, infographics).
+   width:100% fills the whole text measure; height:auto keeps the aspect ratio.
+   No max-height here on purpose — capping height would shrink the width and
+   leave the image floating narrower than the columns. */
+.magazine img.full { display: block; column-span: all; width: 100%; height: auto;
+  margin: .5em 0 .7em; border-radius: 2px; break-inside: avoid; }
+
+/* Advertising banner. The wrapper (an <a> when the ad links somewhere, else a
+   <div>) carries the layout; the image fills it, undistorted within the height
+   cap. 'ad-full' spans both columns (default), 'ad-col' stays within one. */
+.magazine .ad-banner-wrap {
+  display: block; margin: 5mm 0 0; break-inside: avoid;
+}
+.magazine .ad-banner-wrap.ad-full { column-span: all; }
+.magazine .ad-banner-wrap img {
+  display: block; width: 100%; height: auto; max-height: 75mm;
+  object-fit: contain; border-radius: 2px;
+}
+
+/* Full-page advert dropped inside an article: its own sheet, no folio. */
+.magazine .ad-inline-page {
+  display: block; column-span: all; break-before: page;
+  width: 100%; height: calc(297mm - 34mm);
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  background-color: #fff;
+  page: nofolio;
+}
 
 /* Bold-italic accent pull quote spanning both columns. */
 .magazine .pull-quote { column-span: all; font-style: italic; font-weight: 700;

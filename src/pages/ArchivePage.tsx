@@ -126,7 +126,7 @@ export function ArchivePage() {
               Начало
             </Link>
             <div className="h-5 w-px bg-gray-200" />
-            <h1 className="text-sm font-semibold text-gray-900">Архив</h1>
+            <h1 className="text-sm font-semibold text-gray-900">Всички броеве</h1>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400">{articles.length} статии</span>

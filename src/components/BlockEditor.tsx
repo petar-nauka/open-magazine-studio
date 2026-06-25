@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { type ContentBlock } from '../lib/paste-parser';
+import { type ContentBlock, effectiveSpan } from '../lib/paste-parser';
 import {
   Image,
   Type,
@@ -15,6 +15,7 @@ import {
   Loader2,
   Check,
   X,
+  Megaphone,
 } from 'lucide-react';
 import { AlignmentPicker } from './AlignmentPicker';
 import { compressDataUrl, uploadImage } from '../lib/image-upload';
@@ -56,7 +57,7 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
       type,
       content: '',
       position: afterIdx + 1,
-      metadata: type === 'heading' ? { level: 2 } : {},
+      metadata: type === 'heading' ? { level: 2 } : type === 'ad' ? { adMode: 'full' } : {},
     };
     const updated = [...blocks];
     updated.splice(afterIdx + 1, 0, newBlock);
@@ -187,7 +188,7 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
 
           {/* Block content */}
           <div className="px-2 pb-2">
-            {block.type === 'image' ? (
+            {block.type === 'image' || block.type === 'ad' ? (
               <ImageBlockEditor
                 block={block}
                 isActive={activeBlockId === block.id}
@@ -385,6 +386,65 @@ function ImageBlockEditor({
         {uploading ? 'Качвам…' : 'Качи снимка'}
       </button>
 
+      {/* For an ad: banner (foot of article) vs full-page. For a normal image:
+          one column vs full width. Both default to a smart guess. */}
+      {block.content && block.type === 'ad' && (
+        <div className="flex items-center gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
+          <span className="text-[10px] text-gray-400 shrink-0">Реклама:</span>
+          <div className="flex rounded border border-gray-200 overflow-hidden text-[10px]">
+            {(['column', 'full', 'page'] as const).map((opt) => {
+              const cur = block.metadata.adMode === 'column' || block.metadata.adMode === 'page'
+                ? block.metadata.adMode
+                : 'full';
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => onChange({ metadata: { ...block.metadata, adMode: opt } })}
+                  className={`px-2 py-0.5 transition-colors ${
+                    cur === opt ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  {opt === 'column' ? '1 колона' : opt === 'full' ? '2 колони' : 'Цяла страница'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {block.content && block.type === 'ad' && (
+        <input
+          type="url"
+          defaultValue={block.metadata.href ?? ''}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={(e) => onChange({ metadata: { ...block.metadata, href: e.target.value.trim() || undefined } })}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder="Линк към сайт (https://...)"
+          className="w-full text-[10px] px-2 py-1 mt-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-200"
+        />
+      )}
+      {block.content && block.type !== 'ad' && (
+        <div className="flex items-center gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
+          <span className="text-[10px] text-gray-400 shrink-0">Ширина:</span>
+          <div className="flex rounded border border-gray-200 overflow-hidden text-[10px]">
+            {(['column', 'full'] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => onChange({ metadata: { ...block.metadata, span: opt } })}
+                className={`px-2 py-0.5 transition-colors ${
+                  effectiveSpan(block) === opt
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                {opt === 'column' ? '1 колона' : '2 колони'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* URL input when active — optional, for an already-hosted image */}
       {isActive && (
         <input
@@ -455,6 +515,12 @@ function AddBlockMenu({ onAdd, inline }: { onAdd: (type: ContentBlock['type']) =
           >
             <Quote className="w-3.5 h-3.5" /> Цитат
           </button>
+          <button
+            onClick={() => { onAdd('ad'); setOpen(false); }}
+            className="w-full px-3 py-1.5 text-left text-[11px] text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+          >
+            <Megaphone className="w-3.5 h-3.5" /> Реклама
+          </button>
         </div>
       )}
     </div>
@@ -467,6 +533,7 @@ function getBlockIcon(type: ContentBlock['type']) {
     case 'heading': return <Heading className={cls} />;
     case 'image': return <Image className={cls} />;
     case 'pull_quote': return <Quote className={cls} />;
+    case 'ad': return <Megaphone className={cls} />;
     default: return <Type className={cls} />;
   }
 }
@@ -476,6 +543,7 @@ function getBlockColor(type: ContentBlock['type']) {
     case 'heading': return 'bg-amber-100 text-amber-700';
     case 'image': return 'bg-blue-100 text-blue-700';
     case 'pull_quote': return 'bg-emerald-100 text-emerald-700';
+    case 'ad': return 'bg-purple-100 text-purple-700';
     default: return 'bg-gray-100 text-gray-600';
   }
 }
@@ -485,6 +553,7 @@ function getBlockLabel(type: ContentBlock['type']) {
     case 'heading': return 'Заглавие';
     case 'image': return 'Снимка';
     case 'pull_quote': return 'Цитат';
+    case 'ad': return 'Реклама';
     default: return 'Текст';
   }
 }
