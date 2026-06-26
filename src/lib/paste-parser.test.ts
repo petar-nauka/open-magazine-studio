@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseHtmlContent, effectiveSpan, effectiveImageSize, type ContentBlock } from './paste-parser';
+import { parseHtmlContent, effectiveSpan, effectiveImageSize, reconcileRichSegments, type ContentBlock } from './paste-parser';
 
 function imageBlock(meta: ContentBlock['metadata']): ContentBlock {
   return { id: 'x', type: 'image', content: 'a.jpg', position: 0, metadata: meta };
@@ -36,15 +36,43 @@ describe('effectiveImageSize', () => {
     expect(effectiveImageSize(imageBlock({ imageSize: 'wide', imageAspect: 'landscape' }))).toBe('wide');
   });
 
-  it('honours legacy span=full, otherwise defaults to in-column medium', () => {
-    expect(effectiveImageSize(imageBlock({ span: 'full' }))).toBe('full');
-    expect(effectiveImageSize(imageBlock({ span: 'column' }))).toBe('md');
+  it('defaults to full width, except portrait images which stay in-column (md)', () => {
+    expect(effectiveImageSize(imageBlock({ imageAspect: 'landscape' }))).toBe('full');
+    expect(effectiveImageSize(imageBlock({ imageAspect: 'square' }))).toBe('full');
+    expect(effectiveImageSize(imageBlock({}))).toBe('full');
+    // a tall portrait would overflow the page at full width, so it stays in-column
+    expect(effectiveImageSize(imageBlock({ imageAspect: 'portrait' }))).toBe('md');
+    // an explicit size always wins, even for a portrait
+    expect(effectiveImageSize(imageBlock({ imageSize: 'full', imageAspect: 'portrait' }))).toBe('full');
+  });
+});
+
+describe('reconcileRichSegments', () => {
+  it('leaves plain blocks untouched (no richSegments)', () => {
+    const meta = { align: 'left' as const };
+    expect(reconcileRichSegments('нов текст', meta)).toBe(meta);
   });
 
-  it('defaults to in-column (md) regardless of aspect — no auto full width', () => {
-    expect(effectiveImageSize(imageBlock({ imageAspect: 'portrait' }))).toBe('md');
-    expect(effectiveImageSize(imageBlock({ imageAspect: 'landscape' }))).toBe('md');
-    expect(effectiveImageSize(imageBlock({}))).toBe('md');
+  it('keeps a uniformly italic block italic with the new text', () => {
+    const meta: ContentBlock['metadata'] = {
+      italic: true,
+      richSegments: [{ text: 'стар надпис', italic: true }],
+    };
+    const next = reconcileRichSegments('нов надпис', meta);
+    expect(next.richSegments).toEqual([{ text: 'нов надпис', italic: true, bold: undefined }]);
+    expect(next.italic).toBe(true);
+  });
+
+  it('drops stale mixed-formatting segments so the new plain text renders', () => {
+    const meta: ContentBlock['metadata'] = {
+      richSegments: [
+        { text: 'Така ' },
+        { text: 'Каблешков', bold: true },
+        { text: ' описва.' },
+      ],
+    };
+    const next = reconcileRichSegments('Съвсем нов текст без форматиране.', meta);
+    expect(next.richSegments).toBeUndefined();
   });
 });
 

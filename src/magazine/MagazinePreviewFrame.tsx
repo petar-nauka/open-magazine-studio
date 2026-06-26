@@ -13,7 +13,15 @@ export const MagazinePreviewFrame = forwardRef<MagazinePreviewFrameHandle, Props
     const frameRef = useRef<HTMLIFrameElement>(null);
 
     useImperativeHandle(ref, () => ({
-      print: () => frameRef.current?.contentWindow?.print(),
+      print: () => {
+        const win = frameRef.current?.contentWindow;
+        if (!win) return;
+        // Wait for the iframe's fonts to finish loading before printing, so the
+        // text isn't rasterised blank/fallback (font-display) on a slow layout.
+        const fonts = win.document?.fonts;
+        if (fonts?.ready) fonts.ready.then(() => win.print()).catch(() => win.print());
+        else win.print();
+      },
     }));
 
     useEffect(() => {

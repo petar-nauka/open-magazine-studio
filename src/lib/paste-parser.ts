@@ -46,16 +46,33 @@ export function effectiveSpan(block: ContentBlock): 'column' | 'full' {
 // middle ground that fits a shallow leftover space instead of jumping to a new
 // page. 'full' spans both columns at natural height (banners/infographics).
 //
-// Default is in-column (medium). We deliberately do NOT auto-pick full width
-// for landscape images: an article with several landscape photos would turn
-// every one into a column-spanning block that can't fit the remaining space,
-// fragmenting the layout into big gaps. The user opts into 'wide'/'full' per
-// image when a banner/infographic should span the page. Legacy span='full' is
-// still honoured so previously full-width images keep their look.
+// Default is FULL width — the uniform magazine look the editor asked for, so
+// photos don't have to be enlarged one by one. The one exception is PORTRAIT
+// images: at full text width a tall portrait would be taller than the page and
+// break the layout, so portraits stay in-column (medium) by default. Any image
+// can still be set to a smaller size (or a portrait forced to 'full') per image.
 export function effectiveImageSize(block: ContentBlock): 'sm' | 'md' | 'lg' | 'wide' | 'full' {
   if (block.metadata.imageSize) return block.metadata.imageSize;
-  if (block.metadata.span === 'full') return 'full';
-  return 'md';
+  if (block.metadata.imageAspect === 'portrait') return 'md';
+  return 'full';
+}
+
+// The renderer prefers a block's richSegments (its inline bold/italic runs) over
+// the plain `content`. The block editor edits only plain text, so after an edit
+// the stale richSegments would keep showing the OLD words. Reconcile the segments
+// with the new text: a uniformly bold/italic block keeps that styling via a single
+// segment; any other block drops its now-stale segments so the new text renders.
+export function reconcileRichSegments(
+  text: string,
+  meta: ContentBlock['metadata']
+): ContentBlock['metadata'] {
+  if (!meta.richSegments) return meta;
+  if (meta.bold || meta.italic) {
+    return { ...meta, richSegments: [{ text, bold: meta.bold, italic: meta.italic }] };
+  }
+  const next = { ...meta };
+  delete next.richSegments;
+  return next;
 }
 
 export interface ParsedArticle {

@@ -58,7 +58,15 @@ export function RenderPage() {
       <div className="print:hidden sticky top-0 z-10 flex items-center justify-between gap-3 bg-white/90 backdrop-blur border-b border-gray-200 px-4 py-2">
         <a href="/" className="text-sm text-gray-600 hover:text-gray-900">← Начало</a>
         <button
-          onClick={() => window.print()}
+          onClick={async () => {
+            // Wait for the magazine fonts to finish loading before printing.
+            // Chrome rasterises the print document afresh; if the custom fonts
+            // aren't ready yet the text prints blank (font-display) or in a
+            // fallback face. This matters most for large issues, which take
+            // longer to lay out than the print trigger.
+            try { await document.fonts.ready; } catch { /* print anyway */ }
+            window.print();
+          }}
           className="px-4 py-2 text-sm font-medium text-white bg-[#007daa] rounded-lg hover:opacity-90"
         >
           Свали PDF

@@ -48,6 +48,12 @@ export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; al
     <div className="article-body" style={{ textAlign: align }}>
       {blocks.map((b) => {
         const a = b.metadata.align;
+        // An intentionally empty text block is a deliberate blank line (spacer)
+        // between sections. The &nbsp; gives it a line box so it doesn't collapse
+        // to no height — letting the author add vertical space where needed.
+        if (b.type === 'text' && !b.content.trim()) {
+          return <p className="spacer" key={b.id}>{' '}</p>;
+        }
         switch (b.role) {
           case 'subheading':
             return <h2 className="subheading" key={b.id} style={a ? { textAlign: a } : undefined}>{b.content}</h2>;

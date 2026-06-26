@@ -8,6 +8,7 @@ import { BlockEditor } from '../components/BlockEditor';
 import { AIChatPanel } from '../components/AIChatPanel';
 import { type ContentBlock } from '../lib/paste-parser';
 import { supabase } from '../lib/supabase';
+import { replaceArticleBlocks } from '../lib/save-blocks';
 import { Toast } from '../components/Toast';
 import type { AccentName } from '../design-system/brand';
 import type { Align } from '../design-system/alignment';
@@ -122,9 +123,16 @@ export function EditArticlePage() {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Persist the blocks too — the article row above does NOT hold block edits
+      // (image sizes, text, spans, spacers...). Without this, "Запазено" lied and
+      // every block change was lost on reload.
+      await replaceArticleBlocks(id, blocks);
+
       setToast('Запазено ✓');
     } catch (err) {
       console.error('Save failed:', err);
+      setToast('Грешка при запазване — промените не са записани. Опитай пак.');
     } finally {
       setSaving(false);
     }

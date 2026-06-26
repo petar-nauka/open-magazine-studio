@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { type ContentBlock, effectiveImageSize } from '../lib/paste-parser';
+import { type ContentBlock, effectiveImageSize, reconcileRichSegments } from '../lib/paste-parser';
 import {
   Image,
   Type,
@@ -71,7 +71,10 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
     try {
       const result = await onAIRewrite(blockId, aiPrompt.trim());
       if (result) {
-        updateBlock(blockId, { content: result });
+        const target = blocks.find((b) => b.id === blockId);
+        updateBlock(blockId, target
+          ? { content: result, metadata: reconcileRichSegments(result, target.metadata) }
+          : { content: result });
       }
     } finally {
       setAiLoading(false);
@@ -200,7 +203,7 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
                 block={block}
                 isActive={activeBlockId === block.id}
                 onActivate={() => setActiveBlockId(block.id)}
-                onChange={(content) => updateBlock(block.id, { content })}
+                onChange={(content) => updateBlock(block.id, { content, metadata: reconcileRichSegments(content, block.metadata) })}
               />
             )}
             {block.type === 'text' && (

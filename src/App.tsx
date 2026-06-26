@@ -10,6 +10,7 @@ import { type ParsedArticle, type ContentBlock } from './lib/paste-parser';
 import { articleFromParsed, findTitleBlock } from './lib/document-model';
 import { uploadArticleImages } from './lib/image-upload';
 import { supabase } from './lib/supabase';
+import { replaceArticleBlocks } from './lib/save-blocks';
 import { nextSortOrder } from './lib/issues';
 import { Toast } from './components/Toast';
 import type { AccentName } from './design-system/brand';
@@ -95,6 +96,8 @@ function App() {
           })
           .eq('id', savedId);
         if (error) throw error;
+        // Persist the blocks too: the article row doesn't hold block edits.
+        await replaceArticleBlocks(savedId, article.blocks);
       } else {
         let sortOrder = 0;
         if (categoryId) {
@@ -122,20 +125,12 @@ function App() {
         if (!articleData) throw new Error('Failed to save article');
         setSavedId(articleData.id);
 
-        const blocksToInsert = article.blocks.map((block) => ({
-          article_id: articleData.id,
-          type: block.type,
-          content: block.content,
-          position: block.position,
-          metadata: block.metadata,
-        }));
-
-        const { error: blocksError } = await supabase.from('mag_pdf_content_blocks').insert(blocksToInsert);
-        if (blocksError) throw blocksError;
+        await replaceArticleBlocks(articleData.id, article.blocks);
       }
       setToast('Запазено ✓');
     } catch (err) {
       console.error('Save failed:', err);
+      setToast('Грешка при запазване — промените не са записани. Опитай пак.');
     } finally {
       setSaving(false);
     }

@@ -28,6 +28,11 @@
 
 .magazine p { margin: 0 0 .6em; }
 
+/* An empty text block renders as a deliberate blank line between sections. The
+   &nbsp; in the markup gives it a line box (so it doesn't collapse to no height);
+   one such block ≈ one blank line — stack them for a larger gap. */
+.magazine .article-body p.spacer { margin: 0; }
+
 /* A body paragraph the user set to full width spans both columns (e.g. a caption
    or intro under a full-width image). */
 .magazine .article-body p.text-full { column-span: all; }
