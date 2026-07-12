@@ -11,6 +11,7 @@ import { articleFromParsed, findTitleBlock } from './lib/document-model';
 import { uploadArticleImages } from './lib/image-upload';
 import { supabase } from './lib/supabase';
 import { replaceArticleBlocks } from './lib/save-blocks';
+import { useUnsavedChangesWarning } from './lib/use-unsaved-warning';
 import { nextSortOrder } from './lib/issues';
 import { Toast } from './components/Toast';
 import type { AccentName } from './design-system/brand';
@@ -46,6 +47,17 @@ function App() {
   // Title comes from the H1 block so it matches the cover and what the user edits.
   const articleTitle = article ? (findTitleBlock(article.blocks)?.content?.trim() || article.title) : '';
 
+  // Unsaved-changes tracking: compare a serialized snapshot of the editable state
+  // against the baseline captured at the last save (null baseline = never saved,
+  // so a freshly pasted article counts as dirty). Warns before the tab closes.
+  const savedSnapshot = useRef<string | null>(null);
+  const currentSnapshot = useMemo(
+    () => (article ? JSON.stringify({ blocks: article.blocks, articleAuthor, tags, categoryId, accent, align, dropCap, openerImage }) : null),
+    [article, articleAuthor, tags, categoryId, accent, align, dropCap, openerImage]
+  );
+  const dirty = view === 'editor' && currentSnapshot !== null && currentSnapshot !== savedSnapshot.current;
+  useUnsavedChangesWarning(dirty);
+
   useEffect(() => {
     loadCategories();
   }, []);
@@ -72,9 +84,30 @@ function App() {
         setImporting(null);
       }
     }
+    savedSnapshot.current = null; // freshly imported, not yet saved → counts as dirty
     setArticle(imported);
     setView('editor');
   }, []);
+
+  // Returning to the paste screen must clear the current article's state — above
+  // all savedId. Otherwise the next pasted article would UPDATE the previously
+  // saved row (overwriting its title, layout AND blocks) instead of being
+  // inserted as a new article. The issue context (categoryId) is kept, so
+  // adding several articles to the same брой in a row still works. Guard unsaved
+  // changes with a confirm first.
+  const startNewArticle = () => {
+    if (dirty && !window.confirm('Има незаписани промени в текущата статия. Да продължа ли без запазване?')) return;
+    savedSnapshot.current = null;
+    setArticle(null);
+    setSavedId(null);
+    setArticleAuthor('');
+    setTags([]);
+    setAccent('teal');
+    setAlign('justify');
+    setDropCap(true);
+    setOpenerImage(undefined);
+    setView('paste');
+  };
 
   const handleSave = async () => {
     if (!article) return;
@@ -127,6 +160,7 @@ function App() {
 
         await replaceArticleBlocks(articleData.id, article.blocks);
       }
+      savedSnapshot.current = currentSnapshot; // baseline is now the saved state → not dirty
       setToast('Запазено ✓');
     } catch (err) {
       console.error('Save failed:', err);
@@ -268,7 +302,7 @@ function App() {
         <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setView('paste')}
+              onClick={startNewArticle}
               className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />

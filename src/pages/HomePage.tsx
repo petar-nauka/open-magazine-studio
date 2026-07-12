@@ -2,13 +2,20 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, BookOpen } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
+import { Toast } from '../components/Toast';
 import { loadRecentIssues, createIssue, type Issue } from '../lib/issues';
 
 export function HomePage() {
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => { loadRecentIssues(5).then(setIssues).catch(() => {}); }, []);
+  useEffect(() => {
+    loadRecentIssues(5)
+      .then(setIssues)
+      .catch((e) => { console.error('Неуспешно зареждане на броевете', e); setLoadError(true); });
+  }, []);
 
   const handleNewIssue = async () => {
     const name = window.prompt('Име на новия брой:');
@@ -16,7 +23,7 @@ export function HomePage() {
     try {
       const issue = await createIssue(name.trim());
       navigate(`/issue/${issue.id}`);
-    } catch (e) { alert('Грешка при създаване: ' + String(e)); }
+    } catch (e) { setToast('Грешка при създаване: ' + String(e)); }
   };
 
   return (
@@ -29,7 +36,12 @@ export function HomePage() {
             <Plus className="w-5 h-5" /> Нов брой
           </button>
         </div>
-        {issues.length === 0 ? (
+        {loadError ? (
+          <div className="text-center text-red-600 py-20">
+            <p className="text-sm mb-3">Неуспешно зареждане на броевете. Провери връзката и опитай пак.</p>
+            <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm bg-[#007daa] text-white rounded-lg hover:opacity-90">Презареди</button>
+          </div>
+        ) : issues.length === 0 ? (
           <div className="text-center text-gray-400 py-20">
             <BookOpen className="w-10 h-10 mx-auto mb-3" />
             Още няма броеве. Натисни „Нов брой", за да започнеш.
@@ -53,6 +65,7 @@ export function HomePage() {
           </div>
         )}
       </main>
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

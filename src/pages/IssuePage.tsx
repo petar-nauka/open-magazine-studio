@@ -10,6 +10,7 @@ import {
   loadInserts, addInsert, deleteInsert, reorderIssueItems, mergeIssueItems, type IssueItem,
 } from '../lib/inserts';
 import { compressDataUrl, uploadImage, uploadRawFile } from '../lib/image-upload';
+import { Toast } from '../components/Toast';
 
 export function IssuePage() {
   const { id } = useParams<{ id: string }>();
@@ -19,19 +20,25 @@ export function IssuePage() {
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [dupMenuFor, setDupMenuFor] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const imgInput = useRef<HTMLInputElement>(null);
   const pdfInput = useRef<HTMLInputElement>(null);
   const adInput = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(() => {
     if (!id) return;
+    setLoadError(null);
     Promise.all([loadIssue(id), loadInserts(id), loadAllIssues()])
       .then(([{ issue, articles }, inserts, all]) => {
         setIssue(issue);
         setItems(mergeIssueItems(articles, inserts));
         setAllIssues(all);
       })
-      .catch((e) => { console.error('Неуспешно зареждане на броя', e); });
+      .catch((e) => {
+        console.error('Неуспешно зареждане на броя', e);
+        setLoadError('Неуспешно зареждане на броя. Провери връзката и опитай пак.');
+      });
   }, [id]);
   useEffect(refresh, [refresh]);
 
@@ -41,7 +48,7 @@ export function IssuePage() {
       await archiveArticleFromIssue(articleId);
       refresh();
     } catch (e) {
-      alert('Грешка при архивиране: ' + String(e));
+      setToast('Грешка при архивиране: ' + String(e));
     }
   };
 
@@ -51,7 +58,7 @@ export function IssuePage() {
       await duplicateArticleToIssue(articleId, targetCategoryId);
       refresh();
     } catch (e) {
-      alert('Грешка при дублиране: ' + String(e));
+      setToast('Грешка при дублиране: ' + String(e));
     }
   };
 
@@ -60,7 +67,7 @@ export function IssuePage() {
       await reorderIssueItems(items, itemId, dir);
       refresh();
     } catch (e) {
-      alert('Грешка при пренареждане: ' + String(e));
+      setToast('Грешка при пренареждане: ' + String(e));
     }
   };
 
@@ -84,7 +91,7 @@ export function IssuePage() {
       const hint = /fetch|413|large|payload/i.test(msg)
         ? '\n\nВероятно файлът е твърде голям за сървъра (лимит ~1 MB). Опитай по-малък файл или вдигни лимита за качване на сървъра.'
         : '';
-      alert('Грешка при качване на корицата: ' + msg + hint);
+      setToast('Грешка при качване на корицата: ' + msg + hint);
     } finally {
       setUploading(false);
       if (imgInput.current) imgInput.current.value = '';
@@ -101,7 +108,7 @@ export function IssuePage() {
       await addInsert(id, url, nextSortOrder(items));
       refresh();
     } catch (e) {
-      alert('Грешка при качване на рекламата: ' + String(e));
+      setToast('Грешка при качване на рекламата: ' + String(e));
     } finally {
       setUploading(false);
       if (adInput.current) adInput.current.value = '';
@@ -114,11 +121,27 @@ export function IssuePage() {
       await deleteInsert(insertId);
       refresh();
     } catch (e) {
-      alert('Грешка при изтриване: ' + String(e));
+      setToast('Грешка при изтриване: ' + String(e));
     }
   };
 
-  if (!issue) return <div className="min-h-screen bg-gray-50"><AppHeader /></div>;
+  if (loadError) return (
+    <div className="min-h-screen bg-gray-50">
+      <AppHeader />
+      <main className="max-w-4xl mx-auto px-6 py-12">
+        <div className="bg-white border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-sm text-red-700 mb-3">{loadError}</p>
+          <button onClick={refresh} className="px-4 py-2 text-sm bg-[#007daa] text-white rounded-lg hover:opacity-90">Опитай пак</button>
+        </div>
+      </main>
+    </div>
+  );
+  if (!issue) return (
+    <div className="min-h-screen bg-gray-50">
+      <AppHeader />
+      <main className="max-w-4xl mx-auto px-6 py-12 text-center text-sm text-gray-400">Зареждане…</main>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -219,6 +242,7 @@ export function IssuePage() {
           ))}
         </div>
       </main>
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

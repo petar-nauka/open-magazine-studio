@@ -9,6 +9,7 @@ import { AIChatPanel } from '../components/AIChatPanel';
 import { type ContentBlock } from '../lib/paste-parser';
 import { supabase } from '../lib/supabase';
 import { replaceArticleBlocks } from '../lib/save-blocks';
+import { useUnsavedChangesWarning } from '../lib/use-unsaved-warning';
 import { Toast } from '../components/Toast';
 import type { AccentName } from '../design-system/brand';
 import type { Align } from '../design-system/alignment';
@@ -17,6 +18,17 @@ interface Category {
   id: string;
   name: string;
   issue_number: number | null;
+}
+
+// Serialize the editable state for unsaved-changes detection. Used both from the
+// live state (memo) and from freshly loaded data (baseline) — same field order,
+// so equal content produces an equal string.
+function editorSnapshot(
+  blocks: ContentBlock[], dbTitle: string, author: string, tags: string[],
+  categoryId: string | null, accent: string, align: Align, dropCap: boolean,
+  openerImage: string | undefined, status: string,
+): string {
+  return JSON.stringify({ blocks, dbTitle, author, tags, categoryId, accent, align, dropCap, openerImage, status });
 }
 
 export function EditArticlePage() {
@@ -61,6 +73,16 @@ export function EditArticlePage() {
     [title, blocks, author, accent, align, dropCap, openerImage]
   );
 
+  // Unsaved-changes tracking: baseline captured on load/save, compared to the
+  // live serialized state. Warns before the tab is closed/reloaded while dirty.
+  const savedSnapshot = useRef<string | null>(null);
+  const currentSnapshot = useMemo(
+    () => editorSnapshot(blocks, dbTitle, author, tags, categoryId, accent, align, dropCap, openerImage, status),
+    [blocks, dbTitle, author, tags, categoryId, accent, align, dropCap, openerImage, status]
+  );
+  const dirty = !loading && currentSnapshot !== savedSnapshot.current;
+  useUnsavedChangesWarning(dirty);
+
   useEffect(() => {
     if (id) loadArticle(id);
   }, [id]);
@@ -95,6 +117,23 @@ export function EditArticlePage() {
       if (categoriesRes.data) {
         setCategories(categoriesRes.data);
       }
+
+      // Capture the loaded state as the unsaved-changes baseline, mirroring the
+      // exact defaults applied to state above so a just-loaded article isn't dirty.
+      const a = articleRes.data;
+      const lc = a?.layout_config ?? {};
+      savedSnapshot.current = editorSnapshot(
+        (blocksRes.data as ContentBlock[]) ?? [],
+        a?.title ?? '',
+        a?.author || '',
+        a?.tags || [],
+        a?.category_id ?? null,
+        lc.accent || 'teal',
+        lc.align || 'justify',
+        typeof lc.dropCap === 'boolean' ? lc.dropCap : true,
+        lc.openerImage || undefined,
+        a?.status ?? 'draft',
+      );
     } catch (err) {
       console.error('Failed to load article:', err);
     } finally {
@@ -129,6 +168,7 @@ export function EditArticlePage() {
       // every block change was lost on reload.
       await replaceArticleBlocks(id, blocks);
 
+      savedSnapshot.current = currentSnapshot; // saved state is the new baseline
       setToast('Запазено ✓');
     } catch (err) {
       console.error('Save failed:', err);

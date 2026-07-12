@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App.tsx';
@@ -8,9 +8,15 @@ import { BrandingSettingsPage } from './pages/BrandingSettingsPage.tsx';
 import { SettingsLayout } from './pages/SettingsLayout.tsx';
 import { ArchivePage } from './pages/ArchivePage.tsx';
 import { EditArticlePage } from './pages/EditArticlePage.tsx';
-import { RenderPage } from './pages/RenderPage.tsx';
 import { IssuePage } from './pages/IssuePage.tsx';
 import './index.css';
+
+// RenderPage pulls in Paged.js (~large). Load it only for the /render route so it
+// stays out of the main bundle that every other page pays for. (main.tsx is the
+// app entry, not a fast-refreshed component module, so the react-refresh hint
+// about exports doesn't apply here.)
+// eslint-disable-next-line react-refresh/only-export-components
+const RenderPage = lazy(() => import('./pages/RenderPage.tsx').then((m) => ({ default: m.RenderPage })));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -26,7 +32,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/archive" element={<ArchivePage />} />
         <Route path="/edit/:id" element={<EditArticlePage />} />
         <Route path="/issue/:id" element={<IssuePage />} />
-        <Route path="/render" element={<RenderPage />} />
+        <Route path="/render" element={<Suspense fallback={null}><RenderPage /></Suspense>} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

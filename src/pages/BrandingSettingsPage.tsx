@@ -61,6 +61,7 @@ export function BrandingSettingsPage() {
   const [settings, setSettings] = useState<BrandingSettings>(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -88,6 +89,7 @@ export function BrandingSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
 
     try {
       const { error } = await supabase
@@ -102,6 +104,7 @@ export function BrandingSettingsPage() {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error('Failed to save branding settings:', err);
+      setSaveError('Грешка при запазване: ' + String(err));
     } finally {
       setSaving(false);
     }
@@ -422,7 +425,8 @@ export function BrandingSettingsPage() {
             </div>
           </section>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-3">
+            {saveError && <span className="text-sm text-red-600">{saveError}</span>}
             <button
               onClick={handleSave}
               disabled={saving}

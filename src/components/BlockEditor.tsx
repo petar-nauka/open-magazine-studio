@@ -40,6 +40,7 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
   };
 
   const removeBlock = (id: string) => {
+    if (!window.confirm('Да изтрия ли този блок? Действието не може да се върне.')) return;
     onChange(blocks.filter((b) => b.id !== id).map((b, i) => ({ ...b, position: i })));
   };
 

@@ -28,27 +28,20 @@ export function buildRenderItems(
   });
 }
 
-// Retained for unit tests (and possible single-article export); the app now uses buildRenderItems.
-export function issueRowsToDocs(
-  articles: IssueArticleRow[],
-  blocksByArticle: Record<string, BlockRow[]>
-): ArticleDoc[] {
-  return [...articles]
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((a) => rowsToArticleDoc(a, blocksByArticle[a.id] ?? []));
-}
-
 export async function loadIssueDoc(issueId: string): Promise<{ coverImage: string; items: RenderItem[] }> {
   const issueRes = await supabase
     .from('mag_pdf_categories').select('cover_image_url').eq('id', issueId).maybeSingle();
+  if (issueRes.error) throw issueRes.error;
   const articlesRes = await supabase
     .from('mag_pdf_articles').select('id, title, author, layout_config, sort_order').eq('category_id', issueId).order('sort_order');
+  if (articlesRes.error) throw articlesRes.error;
   const articles = (articlesRes.data ?? []) as IssueArticleRow[];
   const blocksByArticle: Record<string, BlockRow[]> = {};
   await Promise.all(
     articles.map(async (a) => {
       const r = await supabase
         .from('mag_pdf_content_blocks').select('id, type, content, position, metadata').eq('article_id', a.id).order('position');
+      if (r.error) throw r.error; // don't silently render an article with no text
       blocksByArticle[a.id] = (r.data ?? []) as BlockRow[];
     }),
   );

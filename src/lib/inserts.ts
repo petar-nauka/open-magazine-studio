@@ -68,10 +68,27 @@ export function moveItem(items: IssueItem[], id: string, dir: 'up' | 'down'): Is
 }
 
 // Reorder the unified list (positional move + dense renumber) and write each item
-// back to its table.
+// back to its table. Prefers a single transactional RPC so a mid-way failure
+// can't leave the issue half-renumbered; falls back to per-row updates when the
+// function isn't deployed yet (PGRST202) — same pattern as replaceArticleBlocks.
 export async function reorderIssueItems(items: IssueItem[], id: string, dir: 'up' | 'down'): Promise<void> {
   const reordered = moveItem(items, id, dir);
   if (reordered === items) return; // no-op at the ends
+
+  const articles = reordered.filter((it) => it.kind === 'article').map((it) => ({ id: it.id, sort_order: it.sort_order }));
+  const inserts = reordered.filter((it) => it.kind === 'insert').map((it) => ({ id: it.id, sort_order: it.sort_order }));
+
+  const { error: rpcError } = await supabase.rpc('mag_pdf_reorder_issue_items', {
+    p_articles: articles,
+    p_inserts: inserts,
+  });
+  if (!rpcError) return;
+
+  const functionMissing =
+    rpcError.code === 'PGRST202' || /could not find the function|does not exist/i.test(rpcError.message);
+  if (!functionMissing) throw rpcError;
+
+  // Fallback (pre-migration): non-transactional per-row updates.
   await Promise.all(
     reordered.map(async (it) => {
       const { error } = it.kind === 'article'

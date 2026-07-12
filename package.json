@@ -1,8 +1,7 @@
 {
-  "name": "open-magazine-studio",
-  "description": "Turn pasted/uploaded articles into consistent, print-ready magazine PDFs — for NGOs and scientific organisations, no designer required.",
-  "license": "MIT",
-  "version": "1.0.0",
+  "name": "vite-react-typescript-starter",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +14,6 @@
     "export:pdf": "node scripts/export-pdf.mjs"
   },
   "dependencies": {
-    "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.344.0",
     "pagedjs": "^0.4.3",

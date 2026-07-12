@@ -33,6 +33,7 @@ export function AISettingsPage() {
   const [settings, setSettings] = useState<AISettings>(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export function AISettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
 
     try {
       const { error } = await supabase
@@ -74,6 +76,7 @@ export function AISettingsPage() {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error('Failed to save AI settings:', err);
+      setSaveError('Грешка при запазване: ' + String(err));
     } finally {
       setSaving(false);
     }
@@ -250,7 +253,8 @@ export function AISettingsPage() {
             </p>
           </section>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-3">
+            {saveError && <span className="text-sm text-red-600">{saveError}</span>}
             <button
               onClick={handleSave}
               disabled={saving}

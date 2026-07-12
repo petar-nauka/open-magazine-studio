@@ -16,11 +16,12 @@ export function nextSortOrder(items: { sort_order: number }[]): number {
 
 
 export async function loadRecentIssues(limit = 5): Promise<Issue[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('mag_pdf_categories')
     .select('id, name, issue_number, cover_image_url, created_at')
     .order('issue_number', { ascending: false, nullsFirst: false })
     .limit(limit);
+  if (error) throw error; // let the caller show an error state instead of a silent empty list
   return (data ?? []) as Issue[];
 }
 
@@ -49,10 +50,11 @@ export async function setIssueCover(id: string, field: 'cover_image_url' | 'cove
 }
 
 export async function loadAllIssues(): Promise<Issue[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('mag_pdf_categories')
     .select('id, name, issue_number, cover_image_url, created_at')
     .order('issue_number', { ascending: false, nullsFirst: false });
+  if (error) throw error; // surfaced by the caller's catch instead of a silent empty list
   return (data ?? []) as Issue[];
 }
 

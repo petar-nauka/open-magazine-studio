@@ -16,11 +16,22 @@ export const MagazinePreviewFrame = forwardRef<MagazinePreviewFrameHandle, Props
       print: () => {
         const win = frameRef.current?.contentWindow;
         if (!win) return;
-        // Wait for the iframe's fonts to finish loading before printing, so the
-        // text isn't rasterised blank/fallback (font-display) on a slow layout.
-        const fonts = win.document?.fonts;
-        if (fonts?.ready) fonts.ready.then(() => win.print()).catch(() => win.print());
-        else win.print();
+        // Wait until the iframe has finished paginating (data-paged-ready) AND its
+        // fonts are loaded before printing, so we never capture a blank or half-
+        // laid-out page. Poll with a cap so a stuck render still prints eventually.
+        const start = Date.now();
+        const printWhenReady = () => {
+          const body = win.document?.body;
+          const paged = body?.getAttribute('data-paged-ready') === 'true';
+          if (!paged && Date.now() - start < 8000) {
+            setTimeout(printWhenReady, 150);
+            return;
+          }
+          const fonts = win.document?.fonts;
+          if (fonts?.ready) fonts.ready.then(() => win.print()).catch(() => win.print());
+          else win.print();
+        };
+        printWhenReady();
       },
     }));
 
