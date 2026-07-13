@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { Previewer } from 'pagedjs';
+import { fillPageGaps } from './fill-page-gaps';
 
 // Runs Paged.js over the rendered source element, writing paginated pages into `target`.
 // Returns whether pagination has finished (used to gate the print button).
@@ -41,6 +42,9 @@ export function usePaged(
       );
       const previewer = new Previewer();
       await previewer.preview(sourceHtml, ['/fonts/fonts.css', '/magazine.css'], target);
+      // Let trailing images/ads absorb the empty band at the bottom of each
+      // page — before data-paged-ready, so print and PDF export see the result.
+      fillPageGaps(target);
       document.body.setAttribute('data-paged-ready', 'true');
       setReady(true);
     })();

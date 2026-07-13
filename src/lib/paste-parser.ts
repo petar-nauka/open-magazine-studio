@@ -335,7 +335,30 @@ export function parseHtmlContent(html: string): ParsedArticle {
     }
   }
 
+  normalizeHeadingLevels(blocks);
   return { title: title || 'Untitled Article', blocks };
+}
+
+// Word/Google Docs sources often mark every subheading with the same style (the
+// .docx importer defaults them all to level 2), losing the section/subsection
+// hierarchy. When the source draws no distinction, split by lettercase: ALL-CAPS
+// headings are section heads (level 2), the rest subsections (level 3). Sources
+// that already distinguish levels are respected untouched, and the article
+// title (a leading level-1 heading) never takes part.
+export function normalizeHeadingLevels(blocks: ContentBlock[]): void {
+  const headings = blocks.filter((b) => b.type === 'heading');
+  const subs = (headings[0]?.metadata.level ?? 2) === 1 ? headings.slice(1) : headings;
+  const levels = new Set(subs.map((b) => b.metadata.level ?? 2));
+  if (levels.size !== 1) return;
+  for (const b of subs) {
+    b.metadata.level = isAllCaps(b.content) ? 2 : 3;
+  }
+}
+
+// True when the text is entirely uppercase AND actually contains cased letters
+// (digits/punctuation alone don't count).
+function isAllCaps(text: string): boolean {
+  return text === text.toUpperCase() && text !== text.toLowerCase();
 }
 
 export function parsePlainText(text: string): ParsedArticle {

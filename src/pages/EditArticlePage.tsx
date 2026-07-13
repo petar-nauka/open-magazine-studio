@@ -48,7 +48,7 @@ export function EditArticlePage() {
   const [chatOpen, setChatOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [accent, setAccent] = useState<AccentName | string>('teal');
-  const [align, setAlign] = useState<Align>('justify');
+  const [align, setAlign] = useState<Align>('left');
   const [dropCap, setDropCap] = useState(true);
   const [openerImage, setOpenerImage] = useState<string | undefined>(undefined);
 
@@ -129,7 +129,7 @@ export function EditArticlePage() {
         a?.tags || [],
         a?.category_id ?? null,
         lc.accent || 'teal',
-        lc.align || 'justify',
+        lc.align || 'left',
         typeof lc.dropCap === 'boolean' ? lc.dropCap : true,
         lc.openerImage || undefined,
         a?.status ?? 'draft',

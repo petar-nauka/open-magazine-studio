@@ -1,12 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, MessageSquare, X, Sparkles } from 'lucide-react';
+import { Send, Loader2, MessageSquare, X, Sparkles, Check } from 'lucide-react';
 import { type ContentBlock } from '../lib/paste-parser';
+import { parseAssistantReply, applyProposals, type RewriteProposal } from '../lib/ai-commands';
+
+// A rewrite suggested by the model. Nothing touches the article until the user
+// approves it from the proposal card.
+type ProposalItem = RewriteProposal & { status: 'pending' | 'applied' | 'rejected' };
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  proposals?: ProposalItem[];
 }
 
 interface AIChatPanelProps {
@@ -39,16 +45,16 @@ export function AIChatPanel({ blocks, articleTitle, onBlocksChange, open, onClos
     parts.push('');
     parts.push('--- ARTICLE CONTENT ---');
 
+    // Every line carries both the human-friendly number (the user says "блок 3")
+    // and the stable id the model must use in rewrite commands.
     blocks.forEach((block, idx) => {
-      if (block.type === 'heading') {
-        parts.push(`[Block ${idx} - HEADING H${block.metadata.level || 2}]: ${block.content}`);
-      } else if (block.type === 'image') {
-        parts.push(`[Block ${idx} - IMAGE]: ${block.content}`);
-      } else if (block.type === 'pull_quote') {
-        parts.push(`[Block ${idx} - QUOTE]: ${block.content}`);
-      } else {
-        parts.push(`[Block ${idx} - TEXT]: ${block.content}`);
-      }
+      const type = block.type === 'heading'
+        ? `HEADING H${block.metadata.level || 2}`
+        : block.type === 'image' ? 'IMAGE'
+        : block.type === 'pull_quote' ? 'QUOTE'
+        : block.type === 'ad' ? 'AD'
+        : 'TEXT';
+      parts.push(`[Block №${idx} | id=${block.id} | ${type}]: ${block.content}`);
     });
 
     parts.push('--- END ARTICLE ---');
@@ -99,30 +105,16 @@ export function AIChatPanel({ blocks, articleTitle, onBlocksChange, open, onClos
 
       const assistantContent = data.content || 'Грешка при генериране на отговор.';
 
-      // Parse block rewrites from response
-      const rewritePattern = /\[BLOCK (\d+) REWRITE\]:\s*([\s\S]*?)(?=\[BLOCK \d+ REWRITE\]|$)/g;
-      let match;
-      const rewrites: { idx: number; content: string }[] = [];
-
-      while ((match = rewritePattern.exec(assistantContent)) !== null) {
-        rewrites.push({ idx: parseInt(match[1]), content: match[2].trim() });
-      }
-
-      if (rewrites.length > 0) {
-        const updated = [...blocks];
-        for (const rw of rewrites) {
-          if (rw.idx >= 0 && rw.idx < updated.length) {
-            updated[rw.idx] = { ...updated[rw.idx], content: rw.content };
-          }
-        }
-        onBlocksChange(updated);
-      }
+      // Nothing is applied automatically: rewrite commands become proposal
+      // cards the user approves or rejects one by one.
+      const { display, proposals } = parseAssistantReply(assistantContent);
 
       setMessages((prev) => [...prev, {
         id: `msg_${Date.now()}`,
         role: 'assistant',
-        content: assistantContent,
+        content: display || 'Предлагам промяна — виж по-долу.',
         timestamp: Date.now(),
+        proposals: proposals.map((p) => ({ ...p, status: 'pending' as const })),
       }]);
     } catch (err) {
       setMessages((prev) => [...prev, {
@@ -134,6 +126,31 @@ export function AIChatPanel({ blocks, articleTitle, onBlocksChange, open, onClos
     } finally {
       setLoading(false);
     }
+  };
+
+  // A proposal can be applied only while its block still exists and holds
+  // text (image/ad content is a URL — rewriting it would break the image).
+  const proposalTarget = (p: RewriteProposal) => {
+    const target = blocks.find((b) => b.id === p.blockId);
+    return target && target.type !== 'image' && target.type !== 'ad' ? target : undefined;
+  };
+
+  // Applies the pending proposals of a message (all, or just one by index)
+  // and stamps their status; rejection only stamps.
+  const resolveProposals = (msgId: string, index: number | null, action: 'applied' | 'rejected') => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg?.proposals) return;
+    const chosen = (p: ProposalItem, i: number) =>
+      p.status === 'pending' && (index === null || i === index) && (action === 'rejected' || !!proposalTarget(p));
+    if (action === 'applied') {
+      const targets = msg.proposals.filter(chosen);
+      if (targets.length === 0) return;
+      onBlocksChange(applyProposals(blocks, targets));
+    }
+    setMessages((prev) => prev.map((m) => m.id !== msgId ? m : {
+      ...m,
+      proposals: m.proposals!.map((p, i) => chosen(p, i) ? { ...p, status: action } : p),
+    }));
   };
 
   if (!open) return null;
@@ -183,20 +200,82 @@ export function AIChatPanel({ blocks, articleTitle, onBlocksChange, open, onClos
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`
-                max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap
-                ${msg.role === 'user'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-800'}
-              `}
-            >
-              {msg.content}
+        {messages.map((msg) => {
+          const pendingValid = msg.proposals?.filter((p) => p.status === 'pending' && proposalTarget(p)).length ?? 0;
+          return (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className="max-w-[85%] space-y-1.5">
+                <div
+                  className={`
+                    rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap
+                    ${msg.role === 'user'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-800'}
+                  `}
+                >
+                  {msg.content}
+                </div>
+
+                {msg.proposals?.map((p, i) => {
+                  const target = proposalTarget(p);
+                  const num = target ? blocks.findIndex((b) => b.id === p.blockId) : -1;
+                  return (
+                    <div key={i} className="border border-gray-200 rounded-xl p-2.5 bg-white text-xs space-y-1.5 shadow-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-gray-700">
+                          {target ? `Промяна в блок №${num}` : 'Промяна в изтрит/променен блок'}
+                        </span>
+                        {p.status === 'applied' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded">
+                            <Check className="w-3 h-3" /> Приложено
+                          </span>
+                        )}
+                        {p.status === 'rejected' && (
+                          <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">Отказано</span>
+                        )}
+                      </div>
+                      {p.status === 'pending' && target && (
+                        <p className="text-gray-400 line-clamp-2"><span className="font-medium text-gray-500">Сега:</span> {target.content}</p>
+                      )}
+                      <p className={`line-clamp-4 ${p.status === 'rejected' ? 'text-gray-400' : 'text-gray-800'}`}>
+                        <span className="font-medium text-gray-500">Ново:</span> {p.text}
+                      </p>
+                      {p.status === 'pending' && (
+                        target ? (
+                          <div className="flex gap-1.5 pt-0.5">
+                            <button
+                              onClick={() => resolveProposals(msg.id, i, 'applied')}
+                              className="px-2.5 py-1 rounded-lg bg-gray-900 text-white text-[11px] font-medium hover:bg-gray-800 transition-colors"
+                            >
+                              Приложи
+                            </button>
+                            <button
+                              onClick={() => resolveProposals(msg.id, i, 'rejected')}
+                              className="px-2.5 py-1 rounded-lg text-gray-500 text-[11px] hover:bg-gray-100 transition-colors"
+                            >
+                              Откажи
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-amber-600">Блокът вече не съществува (или е снимка) — предложението не може да се приложи.</p>
+                        )
+                      )}
+                    </div>
+                  );
+                })}
+
+                {pendingValid > 1 && (
+                  <button
+                    onClick={() => resolveProposals(msg.id, null, 'applied')}
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-gray-300 text-[11px] font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Приложи всички ({pendingValid})
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {loading && (
           <div className="flex justify-start">

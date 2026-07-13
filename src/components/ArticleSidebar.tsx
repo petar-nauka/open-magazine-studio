@@ -111,7 +111,7 @@ export function ArticleSidebar(props: Props) {
         <SectionLabel>Стил</SectionLabel>
         <div className="space-y-4">
           <AccentPicker value={props.accent} onChange={props.onAccentChange} />
-          <AlignmentPicker value={props.align} onChange={(a) => props.onAlignChange(a ?? 'justify')} label="Подравняване на текста" />
+          <AlignmentPicker value={props.align} onChange={(a) => props.onAlignChange(a ?? 'left')} label="Подравняване на текста" />
           <label className="flex items-center justify-between cursor-pointer">
             <span className="text-sm text-gray-700">Голяма първа буква</span>
             <button

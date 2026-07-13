@@ -36,7 +36,7 @@ export function rowsToArticleDoc(article: ArticleRow, blocks: BlockRow[]): Artic
   return articleFromParsed(parsed, {
     author: article.author ?? '',
     accent: article.layout_config?.accent ?? 'teal',
-    align: article.layout_config?.align ?? 'justify',
+    align: article.layout_config?.align ?? 'left',
     dropCap: article.layout_config?.dropCap,
     openerImage: article.layout_config?.openerImage,
   });

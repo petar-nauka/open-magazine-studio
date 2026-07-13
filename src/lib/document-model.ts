@@ -49,7 +49,7 @@ export function articleFromParsed(
     title: titleBlock?.content.trim() || parsed.title,
     author: opts.author ?? '',
     accent: opts.accent ?? 'teal',
-    align: opts.align ?? 'justify',
+    align: opts.align ?? 'left',
     openerImage,
     dropCap: opts.dropCap ?? true,
     blocks,

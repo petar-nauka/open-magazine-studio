@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseHtmlContent, effectiveSpan, effectiveImageSize, reconcileRichSegments, type ContentBlock } from './paste-parser';
+import { parseHtmlContent, effectiveSpan, effectiveImageSize, reconcileRichSegments, normalizeHeadingLevels, type ContentBlock } from './paste-parser';
 
 function imageBlock(meta: ContentBlock['metadata']): ContentBlock {
   return { id: 'x', type: 'image', content: 'a.jpg', position: 0, metadata: meta };
@@ -127,5 +127,56 @@ describe('parseHtmlContent — inline formatting', () => {
     const segs = body.metadata.richSegments!;
     expect(segs.find((s) => s.italic)?.text).toBe('важно');
     expect(segs.find((s) => s.bold)?.text).toBe('силно');
+  });
+});
+
+describe('normalizeHeadingLevels', () => {
+  const heading = (content: string, level: number, id = content): ContentBlock =>
+    ({ id, type: 'heading', content, position: 0, metadata: { level } });
+  const levelsOf = (blocks: ContentBlock[]) =>
+    blocks.filter((b) => b.type === 'heading').map((b) => b.metadata.level);
+
+  it('разпределя по главни букви, когато всички подзаглавия са на едно ниво', () => {
+    const blocks = [
+      heading('Заглавие на статията', 1),
+      heading('ВЕЛИКОБРИТАНИЯ', 2),
+      heading('Правителствена политика', 2),
+      heading('САЩ', 2),
+      heading('Агенцията по храните и лекарствата (FDA)', 2),
+    ];
+    normalizeHeadingLevels(blocks);
+    expect(levelsOf(blocks)).toEqual([1, 2, 3, 2, 3]);
+  });
+
+  it('уважава източник, който вече различава нива', () => {
+    const blocks = [
+      heading('Заглавие на статията', 1),
+      heading('Първа секция', 2),
+      heading('ПОДТОЧКА С ГЛАВНИ', 3),
+    ];
+    normalizeHeadingLevels(blocks);
+    expect(levelsOf(blocks)).toEqual([1, 2, 3]);
+  });
+
+  it('не пипа заглавието на статията и работи без него', () => {
+    const withTitle = [heading('ЗАГЛАВИЕ НА СТАТИЯТА', 1), heading('История', 2)];
+    normalizeHeadingLevels(withTitle);
+    expect(levelsOf(withTitle)).toEqual([1, 3]);
+
+    const noTitle = [heading('ВЕЛИКОБРИТАНИЯ', 2), heading('История', 2)];
+    normalizeHeadingLevels(noTitle);
+    expect(levelsOf(noTitle)).toEqual([2, 3]);
+  });
+
+  it('текст без букви не се брои за главни букви', () => {
+    const blocks = [heading('Заглавие на статията', 1), heading('2026', 2)];
+    normalizeHeadingLevels(blocks);
+    expect(levelsOf(blocks)).toEqual([1, 3]);
+  });
+
+  it('прилага се от parseHtmlContent (paste и .docx пътя)', () => {
+    const html = '<h1>Заглавие на статията</h1><h2>САЩ</h2><h2>Национална академия</h2>';
+    const { blocks } = parseHtmlContent(html);
+    expect(levelsOf(blocks)).toEqual([1, 2, 3]);
   });
 });

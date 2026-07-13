@@ -207,6 +207,29 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
                 onChange={(content) => updateBlock(block.id, { content, metadata: reconcileRichSegments(content, block.metadata) })}
               />
             )}
+            {/* Heading level: H2 = section, H3 = subsection. The article title
+                (the leading level-1 heading) keeps no switch — it is the cover. */}
+            {block.type === 'heading' && (block.metadata.level ?? 2) >= 2 && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className="text-[10px] text-gray-400 shrink-0">Ниво:</span>
+                <div className="flex rounded border border-gray-200 overflow-hidden text-[10px]">
+                  {([2, 3] as const).map((lv) => (
+                    <button
+                      key={lv}
+                      type="button"
+                      onClick={() => updateBlock(block.id, { metadata: { ...block.metadata, level: lv } })}
+                      className={`px-2 py-0.5 transition-colors ${
+                        (block.metadata.level ?? 2) === lv
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-500 hover:bg-gray-100'
+                      }`}
+                    >
+                      {lv === 2 ? 'H2 секция' : 'H3 подточка'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {block.type === 'text' && (
               <div className="flex items-center gap-1.5 mt-1.5">
                 <span className="text-[10px] text-gray-400 shrink-0">Ширина:</span>

@@ -75,9 +75,9 @@ describe('articleFromParsed', () => {
 });
 
 describe('articleFromParsed align', () => {
-  it('defaults align to justify', () => {
+  it('defaults align to left', () => {
     const doc = articleFromParsed({ title: 'T', blocks: [] });
-    expect(doc.align).toBe('justify');
+    expect(doc.align).toBe('left');
   });
   it('uses the provided align', () => {
     const doc = articleFromParsed({ title: 'T', blocks: [] }, { align: 'center' });

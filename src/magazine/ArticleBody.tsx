@@ -55,8 +55,15 @@ export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; al
           return <p className="spacer" key={b.id}>{' '}</p>;
         }
         switch (b.role) {
-          case 'subheading':
-            return <h2 className="subheading" key={b.id} style={a ? { textAlign: a } : undefined}>{b.content}</h2>;
+          case 'subheading': {
+            // Level 2 = section head (uppercase accent H2); level 3 = subsection
+            // (dark H3 with an accent bar). Level 1 headings past the title also
+            // render as sections.
+            const style = a ? { textAlign: a } : undefined;
+            return (b.metadata.level ?? 2) >= 3
+              ? <h3 className="subheading-minor" key={b.id} style={style}>{b.content}</h3>
+              : <h2 className="subheading" key={b.id} style={style}>{b.content}</h2>;
+          }
           case 'bullet':
             return <Bullet key={b.id} content={b.content} align={a} />;
           case 'pull_quote':

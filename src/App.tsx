@@ -34,7 +34,7 @@ function App() {
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [accent, setAccent] = useState<AccentName | string>('teal');
-  const [align, setAlign] = useState<Align>('justify');
+  const [align, setAlign] = useState<Align>('left');
   const [dropCap, setDropCap] = useState(true);
   const [openerImage, setOpenerImage] = useState<string | undefined>(undefined);
 
@@ -103,7 +103,7 @@ function App() {
     setArticleAuthor('');
     setTags([]);
     setAccent('teal');
-    setAlign('justify');
+    setAlign('left');
     setDropCap(true);
     setOpenerImage(undefined);
     setView('paste');
