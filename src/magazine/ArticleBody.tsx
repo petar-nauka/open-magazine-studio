@@ -11,6 +11,8 @@ function renderInline(segments: RichSegment[] | undefined, fallback: ReactNode):
     let node: ReactNode = seg.text;
     if (seg.bold) node = <strong>{node}</strong>;
     if (seg.italic) node = <em>{node}</em>;
+    if (seg.underline) node = <u>{node}</u>;
+    if (seg.href) node = <a href={seg.href} target="_blank" rel="noopener noreferrer">{node}</a>;
     return <span key={i}>{node}</span>;
   });
 }
@@ -60,14 +62,15 @@ export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; al
             // (dark H3 with an accent bar). Level 1 headings past the title also
             // render as sections.
             const style = a ? { textAlign: a } : undefined;
+            const segs = b.metadata.richSegments;
             return (b.metadata.level ?? 2) >= 3
-              ? <h3 className="subheading-minor" key={b.id} style={style}>{b.content}</h3>
-              : <h2 className="subheading" key={b.id} style={style}>{b.content}</h2>;
+              ? <h3 className="subheading-minor" key={b.id} style={style}>{renderInline(segs, b.content)}</h3>
+              : <h2 className="subheading" key={b.id} style={style}>{renderInline(segs, b.content)}</h2>;
           }
           case 'bullet':
             return <Bullet key={b.id} content={b.content} align={a} />;
           case 'pull_quote':
-            return <p className="pull-quote" key={b.id} style={a ? { textAlign: a } : undefined}>{b.content}</p>;
+            return <p className="pull-quote" key={b.id} style={a ? { textAlign: a } : undefined}>{renderInline(b.metadata.richSegments, b.content)}</p>;
           case 'image': {
             const size = effectiveImageSize(b);
             const cls = size === 'full' ? 'full' : size === 'wide' ? 'wide' : `inline size-${size}`;

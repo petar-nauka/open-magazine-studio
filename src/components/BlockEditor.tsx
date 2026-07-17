@@ -18,6 +18,7 @@ import {
   Megaphone,
 } from 'lucide-react';
 import { AlignmentPicker } from './AlignmentPicker';
+import { RichTextEditor } from './RichTextEditor';
 import { compressDataUrl, uploadImage } from '../lib/image-upload';
 
 interface BlockEditorProps {
@@ -200,11 +201,20 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
                 onChange={(updates) => updateBlock(block.id, updates)}
               />
             ) : (
-              <TextBlockEditor
+              <RichTextEditor
                 block={block}
                 isActive={activeBlockId === block.id}
                 onActivate={() => setActiveBlockId(block.id)}
-                onChange={(content) => updateBlock(block.id, { content, metadata: reconcileRichSegments(content, block.metadata) })}
+                onChange={(content, segments) => {
+                  const meta = { ...block.metadata };
+                  if (segments) meta.richSegments = segments;
+                  else delete meta.richSegments;
+                  // Segments are now the single source of inline styling; the
+                  // legacy uniform bold/italic flags no longer apply.
+                  delete meta.bold;
+                  delete meta.italic;
+                  updateBlock(block.id, { content, metadata: meta });
+                }}
               />
             )}
             {/* Heading level: H2 = section, H3 = subsection. The article title
@@ -305,39 +315,6 @@ export function BlockEditor({ blocks, onChange, onAIRewrite }: BlockEditorProps)
         </div>
       )}
     </div>
-  );
-}
-
-function TextBlockEditor({
-  block,
-  isActive,
-  onActivate,
-  onChange,
-}: {
-  block: ContentBlock;
-  isActive: boolean;
-  onActivate: () => void;
-  onChange: (content: string) => void;
-}) {
-  if (!isActive) {
-    return (
-      <div
-        onClick={onActivate}
-        className="text-xs text-gray-700 line-clamp-3 cursor-text px-1 py-0.5 rounded hover:bg-gray-50 min-h-[20px]"
-      >
-        {block.content || <span className="text-gray-400 italic">Празен блок...</span>}
-      </div>
-    );
-  }
-
-  return (
-    <textarea
-      value={block.content}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full text-xs text-gray-700 border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-gray-200 resize-y min-h-[60px] leading-relaxed"
-      autoFocus
-      rows={Math.max(3, Math.ceil(block.content.length / 60))}
-    />
   );
 }
 

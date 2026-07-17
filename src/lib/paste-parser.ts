@@ -4,6 +4,8 @@ export interface RichSegment {
   text: string;
   bold?: boolean;
   italic?: boolean;
+  underline?: boolean;
+  href?: string;
 }
 
 export interface ContentBlock {
@@ -97,14 +99,18 @@ function getImageAspect(width: number, height: number): 'landscape' | 'portrait'
 // ancestors. Inline `style` wins over the tag name, because Google Docs wraps
 // pasted content in <b style="font-weight:normal"> and similar — trusting the
 // tag alone would mark everything bold.
-function resolveFlags(
-  el: Element,
-  inherited: { bold: boolean; italic: boolean }
-): { bold: boolean; italic: boolean } {
-  let { bold, italic } = inherited;
+type InlineFlags = { bold: boolean; italic: boolean; underline: boolean; href?: string };
+
+function resolveFlags(el: Element, inherited: InlineFlags): InlineFlags {
+  let { bold, italic, underline, href } = inherited;
   const tag = el.tagName.toLowerCase();
   if (tag === 'b' || tag === 'strong') bold = true;
   if (tag === 'i' || tag === 'em') italic = true;
+  if (tag === 'u') underline = true;
+  if (tag === 'a') {
+    const h = el.getAttribute('href');
+    if (h) href = h;
+  }
 
   const style = el.getAttribute('style') || '';
   const fw = /font-weight\s*:\s*(\d+|bold|bolder|normal|lighter)/i.exec(style);
@@ -116,26 +122,62 @@ function resolveFlags(
   if (fs) {
     italic = fs[1].toLowerCase() !== 'normal';
   }
-  return { bold, italic };
+  const td = /text-decoration(?:-line)?\s*:\s*([^;]+)/i.exec(style);
+  if (td) {
+    underline = /underline/i.test(td[1]);
+  }
+  return { bold, italic, underline, href };
 }
 
-// Walk a paragraph's DOM into a flat list of {text, bold, italic} segments,
-// merging adjacent runs that share the same formatting.
-function extractSegments(node: Node, inherited: { bold: boolean; italic: boolean }, out: RichSegment[]): void {
+// True when a segment already carries exactly the given inline formatting, so
+// an adjacent text run can be merged into it instead of starting a new segment.
+function sameFlags(seg: RichSegment, f: InlineFlags): boolean {
+  return (
+    !!seg.bold === f.bold &&
+    !!seg.italic === f.italic &&
+    !!seg.underline === f.underline &&
+    (seg.href || undefined) === (f.href || undefined)
+  );
+}
+
+// Walk a paragraph's DOM into a flat list of formatted segments, merging
+// adjacent runs that share the same formatting. When `breaks` is true (editing
+// a contentEditable, where the browser wraps new lines in <br>/<div>), those
+// boundaries are turned into newlines so multi-line edits survive; the paste
+// path leaves it off to keep its output identical.
+function extractSegments(node: Node, inherited: InlineFlags, out: RichSegment[], breaks = false): void {
   for (let i = 0; i < node.childNodes.length; i++) {
     const child = node.childNodes[i];
     if (child.nodeType === Node.TEXT_NODE) {
       const text = child.textContent || '';
       if (!text) continue;
       const last = out[out.length - 1];
-      if (last && !!last.bold === inherited.bold && !!last.italic === inherited.italic) {
+      if (last && sameFlags(last, inherited)) {
         last.text += text;
       } else {
-        out.push({ text, bold: inherited.bold || undefined, italic: inherited.italic || undefined });
+        out.push({
+          text,
+          bold: inherited.bold || undefined,
+          italic: inherited.italic || undefined,
+          underline: inherited.underline || undefined,
+          href: inherited.href || undefined,
+        });
       }
     } else if (child.nodeType === Node.ELEMENT_NODE) {
-      const flags = resolveFlags(child as Element, inherited);
-      extractSegments(child, flags, out);
+      const elc = child as Element;
+      if (breaks) {
+        const last = out[out.length - 1];
+        if (elc.tagName === 'BR') {
+          if (last) last.text += '\n';
+          continue;
+        }
+        // A block child (new line in contentEditable) starts on its own line.
+        if ((elc.tagName === 'DIV' || elc.tagName === 'P') && last && !last.text.endsWith('\n')) {
+          last.text += '\n';
+        }
+      }
+      const flags = resolveFlags(elc, inherited);
+      extractSegments(child, flags, out, breaks);
     }
   }
 }
@@ -144,12 +186,48 @@ function extractSegments(node: Node, inherited: { bold: boolean; italic: boolean
 // no formatting (so plain blocks stay lightweight).
 function buildRichSegments(el: Element): RichSegment[] | undefined {
   const segments: RichSegment[] = [];
-  extractSegments(el, { bold: false, italic: false }, segments);
+  extractSegments(el, { bold: false, italic: false, underline: false }, segments);
   // Normalize whitespace-only leading/trailing handled by caller's trim of content;
   // keep segments as-is but drop if nothing is actually formatted.
-  const hasFormatting = segments.some((s) => s.bold || s.italic);
+  const hasFormatting = segments.some((s) => s.bold || s.italic || s.underline || s.href);
   if (!hasFormatting) return undefined;
   return segments.filter((s) => s.text.length > 0);
+}
+
+// --- Editor bridge: convert between rich segments and editable HTML ----------
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Serialize segments into HTML for a contentEditable field. Uses semantic tags
+// (<strong>/<em>/<u>/<a>) that both the browser's execCommand and our own
+// extractSegments understand, so editing round-trips cleanly. Newlines become
+// <br> so multi-line blocks keep their shape.
+export function richSegmentsToHtml(segments: RichSegment[] | undefined, fallbackText: string): string {
+  const segs = segments && segments.length ? segments : [{ text: fallbackText }];
+  return segs
+    .map((s) => {
+      let html = escapeHtml(s.text).replace(/\n/g, '<br>') || '<br>';
+      if (s.bold) html = `<strong>${html}</strong>`;
+      if (s.italic) html = `<em>${html}</em>`;
+      if (s.underline) html = `<u>${html}</u>`;
+      if (s.href) html = `<a href="${escapeHtml(s.href).replace(/"/g, '&quot;')}">${html}</a>`;
+      return html;
+    })
+    .join('');
+}
+
+// Read the current DOM of a contentEditable back into plain text + segments.
+// Returns segments only when something is actually formatted, so unformatted
+// blocks stay lightweight (mirrors buildRichSegments / reconcileRichSegments).
+export function domToSegments(el: HTMLElement): { text: string; segments?: RichSegment[] } {
+  const out: RichSegment[] = [];
+  extractSegments(el, { bold: false, italic: false, underline: false }, out, true);
+  const segs = out.filter((s) => s.text.length > 0);
+  const text = segs.map((s) => s.text).join('');
+  const hasFormatting = segs.some((s) => s.bold || s.italic || s.underline || s.href);
+  return { text, segments: hasFormatting ? segs : undefined };
 }
 
 // Google Docs wraps the whole pasted document in <b style="font-weight:normal">
