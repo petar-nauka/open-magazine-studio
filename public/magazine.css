@@ -67,8 +67,11 @@
   margin: .9em 0 .35em; break-after: avoid;
 }
 
-/* Bullets with bold accent lead-in (the lead-in term is wrapped in <strong>). */
+/* Bullets with bold accent lead-in (the lead-in term is wrapped in <strong>).
+   The renderer strips the '•' from the text; the visible marker is drawn here,
+   sitting in the hanging indent so wrapped lines align under the text. */
 .magazine p.bullet { padding-left: 1em; text-indent: -1em; }
+.magazine p.bullet::before { content: '•\00a0'; color: var(--accent); }
 .magazine p.bullet strong { color: var(--accent); }
 
 /* In-column images: capped height keeps tall images from being pushed whole

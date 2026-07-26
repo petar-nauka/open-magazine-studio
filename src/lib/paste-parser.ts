@@ -77,6 +77,20 @@ export function reconcileRichSegments(
   return next;
 }
 
+// Remove the leading '• ' marker from a bullet block's segments so the renderer
+// (which draws its own bullet via CSS) doesn't show it twice. Whitespace-only
+// segments before the marker are skipped.
+export function stripBulletPrefix(segments: RichSegment[]): RichSegment[] {
+  const result = [...segments];
+  for (let i = 0; i < result.length; i++) {
+    const t = result[i].text;
+    if (!t.trim()) continue;
+    result[i] = { ...result[i], text: t.replace(/^\s*•\s*/, '') };
+    break;
+  }
+  return result;
+}
+
 export interface ParsedArticle {
   title: string;
   blocks: ContentBlock[];
@@ -260,47 +274,51 @@ export function parseHtmlContent(html: string): ParsedArticle {
   unwrapInlineWrappers(doc.body);
   const elements = doc.body.children;
 
+  const pushImageBlock = (img: Element) => {
+    const src = img.getAttribute('src') || '';
+    const width = parseInt(img.getAttribute('width') || '800');
+    const height = parseInt(img.getAttribute('height') || '600');
+
+    blocks.push({
+      id: generateId(),
+      type: 'image',
+      content: src,
+      position: position++,
+      metadata: {
+        imageWidth: width,
+        imageHeight: height,
+        imageAspect: getImageAspect(width, height),
+        originalSrc: src,
+      },
+    });
+  };
+
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i];
     const tagName = el.tagName.toLowerCase();
 
-    if (tagName === 'h1' || tagName === 'h2' || tagName === 'h3') {
+    if (/^h[1-6]$/.test(tagName)) {
       const text = el.textContent?.trim() || '';
-      if (!text) continue;
 
-      if (!title && (tagName === 'h1' || tagName === 'h2')) {
-        title = text;
-      }
+      if (text) {
+        if (!title && (tagName === 'h1' || tagName === 'h2')) {
+          title = text;
+        }
 
-      blocks.push({
-        id: generateId(),
-        type: 'heading',
-        content: text,
-        position: position++,
-        metadata: { level: parseInt(tagName[1]) },
-      });
-    } else if (tagName === 'p' || tagName === 'div' || tagName === 'span') {
-      const images = el.querySelectorAll('img');
-      if (images.length > 0) {
-        images.forEach((img) => {
-          const src = img.getAttribute('src') || '';
-          const width = parseInt(img.getAttribute('width') || '800');
-          const height = parseInt(img.getAttribute('height') || '600');
-
-          blocks.push({
-            id: generateId(),
-            type: 'image',
-            content: src,
-            position: position++,
-            metadata: {
-              imageWidth: width,
-              imageHeight: height,
-              imageAspect: getImageAspect(width, height),
-              originalSrc: src,
-            },
-          });
+        blocks.push({
+          id: generateId(),
+          type: 'heading',
+          content: text,
+          position: position++,
+          metadata: { level: parseInt(tagName[1]) },
         });
       }
+
+      // Google Docs anchors an image on the heading's own line inside the
+      // <h*> element — extract it (after the heading) instead of dropping it.
+      el.querySelectorAll('img').forEach(pushImageBlock);
+    } else if (tagName === 'p' || tagName === 'div' || tagName === 'span') {
+      el.querySelectorAll('img').forEach(pushImageBlock);
 
       const text = el.textContent?.trim() || '';
       if (text) {
@@ -329,33 +347,22 @@ export function parseHtmlContent(html: string): ParsedArticle {
         }
       }
     } else if (tagName === 'img') {
-      const src = el.getAttribute('src') || '';
-      const width = parseInt(el.getAttribute('width') || '800');
-      const height = parseInt(el.getAttribute('height') || '600');
-
-      blocks.push({
-        id: generateId(),
-        type: 'image',
-        content: src,
-        position: position++,
-        metadata: {
-          imageWidth: width,
-          imageHeight: height,
-          imageAspect: getImageAspect(width, height),
-          originalSrc: src,
-        },
-      });
+      pushImageBlock(el);
     } else if (tagName === 'ul' || tagName === 'ol') {
       const items = el.querySelectorAll('li');
       items.forEach((li) => {
         const text = li.textContent?.trim() || '';
         if (text) {
+          // Keep the item's inline bold/italic (Google Docs bullets often lead
+          // with a bold term). The '• ' marker is part of the content, so it
+          // becomes a plain first segment to keep content and segments in sync.
+          const liSegments = buildRichSegments(li);
           blocks.push({
             id: generateId(),
             type: 'text',
-            content: `${tagName === 'ol' ? '•' : '•'} ${text}`,
+            content: `• ${text}`,
             position: position++,
-            metadata: {},
+            metadata: liSegments ? { richSegments: [{ text: '• ' }, ...liSegments] } : {},
           });
         }
       });
@@ -371,24 +378,7 @@ export function parseHtmlContent(html: string): ParsedArticle {
         });
       }
     } else if (tagName === 'table') {
-      const imgs = el.querySelectorAll('img');
-      imgs.forEach((img) => {
-        const src = img.getAttribute('src') || '';
-        const width = parseInt(img.getAttribute('width') || '800');
-        const height = parseInt(img.getAttribute('height') || '600');
-        blocks.push({
-          id: generateId(),
-          type: 'image',
-          content: src,
-          position: position++,
-          metadata: {
-            imageWidth: width,
-            imageHeight: height,
-            imageAspect: getImageAspect(width, height),
-            originalSrc: src,
-          },
-        });
-      });
+      el.querySelectorAll('img').forEach(pushImageBlock);
 
       const cells = el.querySelectorAll('td, th');
       cells.forEach((cell) => {

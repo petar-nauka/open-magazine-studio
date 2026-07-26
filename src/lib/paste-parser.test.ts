@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseHtmlContent, effectiveSpan, effectiveImageSize, reconcileRichSegments, normalizeHeadingLevels, type ContentBlock } from './paste-parser';
+import { parseHtmlContent, effectiveSpan, effectiveImageSize, reconcileRichSegments, normalizeHeadingLevels, stripBulletPrefix, type ContentBlock } from './paste-parser';
 
 function imageBlock(meta: ContentBlock['metadata']): ContentBlock {
   return { id: 'x', type: 'image', content: 'a.jpg', position: 0, metadata: meta };
@@ -127,6 +127,87 @@ describe('parseHtmlContent — inline formatting', () => {
     const segs = body.metadata.richSegments!;
     expect(segs.find((s) => s.italic)?.text).toBe('важно');
     expect(segs.find((s) => s.bold)?.text).toBe('силно');
+  });
+});
+
+describe('parseHtmlContent — снимки в заглавия', () => {
+  it('извлича снимка, закотвена вътре в заглавие (Google Docs я слага в <h1>/<h2>)', () => {
+    const html = `
+      <h1>Заглавие на статията<img src="hero.png" width="800" height="500"></h1>
+      <p>Първи абзац от текста на статията, достатъчно дълъг за тяло.</p>`;
+    const { blocks } = parseHtmlContent(html);
+    expect(blocks[0].type).toBe('heading');
+    expect(blocks[0].content).toBe('Заглавие на статията');
+    const img = blocks.find((b) => b.type === 'image');
+    expect(img?.content).toBe('hero.png');
+    // снимката идва веднага след заглавието, преди текста
+    expect(blocks[1].type).toBe('image');
+  });
+
+  it('не пропуска заглавие, което съдържа само снимка', () => {
+    const html = `
+      <h1>Заглавие на статията</h1>
+      <h2><img src="under-title.png" width="600" height="400"></h2>
+      <p>Абзац след снимката под заглавието, достатъчно дълъг за тяло.</p>`;
+    const { blocks } = parseHtmlContent(html);
+    const img = blocks.find((b) => b.type === 'image');
+    expect(img?.content).toBe('under-title.png');
+  });
+
+  it('не губи h4–h6 заглавия и снимките в тях', () => {
+    const html = `
+      <h1>Заглавие на статията</h1>
+      <h4>Подзаглавие четвърто ниво</h4>
+      <p>Текст под подзаглавието, достатъчно дълъг да бъде тяло на статията.</p>`;
+    const { blocks } = parseHtmlContent(html);
+    const h4 = blocks.find((b) => b.type === 'heading' && b.content.includes('четвърто'));
+    expect(h4).toBeDefined();
+    // normalizeHeadingLevels пренарежда еднообразните поднива към 2/3
+    expect(h4?.metadata.level).toBe(3);
+  });
+});
+
+describe('parseHtmlContent — булети с форматиране', () => {
+  const html = `
+    <h1>Заглавие на статията</h1>
+    <p>Основните дейности на агенцията включват следните направления на работа:</p>
+    <ul>
+      <li><p><span style="font-weight:700;">Разрешителен режим</span><span> – АЯР прилага система от лицензи и разрешения за всички дейности.</span></p></li>
+      <li><p><span style="font-weight:700;">Регулаторен контрол</span><span> – Агенцията извършва независими проверки и инспекции.</span></p></li>
+      <li><p><span>Обикновен булет без никакво форматиране в него.</span></p></li>
+    </ul>`;
+
+  it('запазва болда в булет елементи като richSegments', () => {
+    const { blocks } = parseHtmlContent(html);
+    const bullets = blocks.filter((b) => b.content.startsWith('•'));
+    expect(bullets).toHaveLength(3);
+
+    const segs = bullets[0].metadata.richSegments!;
+    expect(segs).toBeDefined();
+    // Съдържанието и сегментите остават съгласувани: '• ' е първият сегмент.
+    expect(segs[0].text).toBe('• ');
+    expect(segs.find((s) => s.bold)?.text).toContain('Разрешителен режим');
+    expect(bullets[0].content).toContain('– АЯР прилага система');
+  });
+
+  it('булет без форматиране си остава лек (без richSegments)', () => {
+    const { blocks } = parseHtmlContent(html);
+    const plain = blocks.find((b) => b.content.includes('Обикновен булет'));
+    expect(plain?.metadata.richSegments).toBeUndefined();
+  });
+});
+
+describe('stripBulletPrefix', () => {
+  it('маха водещото „• “ от първия непразен сегмент', () => {
+    const segs = [{ text: '• ' }, { text: 'Разрешителен режим', bold: true }, { text: ' – описание' }];
+    const out = stripBulletPrefix(segs);
+    expect(out.map((s) => s.text).join('')).toBe('Разрешителен режим – описание');
+    expect(out[1].bold).toBe(true);
+  });
+
+  it('не пипа сегменти без булет префикс', () => {
+    const segs = [{ text: 'Без булет', bold: true }];
+    expect(stripBulletPrefix(segs)).toEqual(segs);
   });
 });
 

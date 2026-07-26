@@ -11,7 +11,11 @@ export async function parseDocxFile(file: File): Promise<ParsedArticle> {
 
   const docXml = new TextDecoder().decode(docEntry.data);
   const images = extractImages(entries);
-  const html = docxXmlToHtml(docXml, images);
+  const relsEntry = entries.find((e) => e.name === 'word/_rels/document.xml.rels');
+  const rels = relsEntry
+    ? parseRelsXml(new TextDecoder().decode(relsEntry.data))
+    : new Map<string, string>();
+  const html = docxXmlToHtml(docXml, images, rels);
 
   const article = parseHtmlContent(html);
   if (article.blocks.length === 0) {
@@ -60,13 +64,67 @@ function extractImages(entries: ZipEntry[]): Map<string, string> {
   return imageMap;
 }
 
-export function docxXmlToHtml(xml: string, images: Map<string, string>): string {
+// Namespace for relationship attributes (r:embed / r:id) on image references.
+const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+// Parse word/_rels/document.xml.rels into rId → target (e.g. "media/image2.png").
+// Images in the document body reference media files ONLY through these ids —
+// the order of files inside word/media/ says nothing about document order.
+export function parseRelsXml(xml: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const all = doc.querySelectorAll('*');
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.localName !== 'Relationship') continue;
+    const id = el.getAttribute('Id');
+    const target = el.getAttribute('Target');
+    if (id && target) map.set(id, target);
+  }
+  return map;
+}
+
+function relAttr(el: Element, ...names: string[]): string | null {
+  for (const n of names) {
+    const v = el.getAttribute(`r:${n}`) || el.getAttributeNS(REL_NS, n);
+    if (v) return v;
+  }
+  return null;
+}
+
+export function docxXmlToHtml(
+  xml: string,
+  images: Map<string, string>,
+  rels: Map<string, string> = new Map()
+): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xml, 'application/xml');
 
   const htmlParts: string[] = [];
-  let imageIndex = 0;
   const imageKeys = Array.from(images.keys());
+  const usedKeys = new Set<string>();
+  let resolvedViaRels = false;
+
+  // Resolve an image reference id through the rels file down to a data URL.
+  const srcForRelId = (rId: string): string | undefined => {
+    const target = rels.get(rId);
+    if (!target) return undefined;
+    const fileName = target.split('/').pop() || target;
+    const src = images.get(fileName);
+    if (src) {
+      usedKeys.add(fileName);
+      resolvedViaRels = true;
+    }
+    return src;
+  };
+
+  // Legacy fallback (docs without usable rels): next media file in zip order.
+  const nextFallbackSrc = (): string | undefined => {
+    const key = imageKeys.find((k) => !usedKeys.has(k));
+    if (!key) return undefined;
+    usedKeys.add(key);
+    return images.get(key);
+  };
 
   const allElements = doc.querySelectorAll('*');
   const pElements: Element[] = [];
@@ -77,10 +135,27 @@ export function docxXmlToHtml(xml: string, images: Map<string, string>): string 
     }
   }
 
+  // Word has no <ul>/<li> — a list item is just a paragraph whose properties
+  // carry <w:numPr>. Consecutive list paragraphs are grouped into one <ul> so
+  // parseHtmlContent turns them into bullet blocks instead of plain text.
+  let listOpen = false;
+  const pushPart = (part: string, isListItem = false) => {
+    if (isListItem && !listOpen) {
+      htmlParts.push('<ul>');
+      listOpen = true;
+    } else if (!isListItem && listOpen) {
+      htmlParts.push('</ul>');
+      listOpen = false;
+    }
+    htmlParts.push(part);
+  };
+
   for (const para of pElements) {
     let text = '';
-    let hasImage = false;
+    let imageElCount = 0;
+    const imgSrcs: string[] = [];
     let styleVal = '';
+    let isListItem = false;
 
     const allDesc = para.querySelectorAll('*');
     for (let i = 0; i < allDesc.length; i++) {
@@ -88,42 +163,67 @@ export function docxXmlToHtml(xml: string, images: Map<string, string>): string 
       if (desc.localName === 'pStyle') {
         styleVal = desc.getAttribute('w:val') || desc.getAttribute('val') || '';
       }
+      if (desc.localName === 'numPr') {
+        isListItem = true;
+      }
       if (desc.localName === 't' && desc.textContent) {
         text += desc.textContent;
       }
-      if (desc.localName === 'drawing' || desc.localName === 'pict' || desc.localName === 'blip') {
-        hasImage = true;
+      if (desc.localName === 'drawing' || desc.localName === 'pict') {
+        imageElCount++;
+      }
+      // DrawingML (<a:blip r:embed>) and VML (<v:imagedata r:id>) references.
+      if (desc.localName === 'blip' || desc.localName === 'imagedata') {
+        const rId =
+          desc.localName === 'blip' ? relAttr(desc, 'embed', 'link') : relAttr(desc, 'id');
+        const src = rId ? srcForRelId(rId) : undefined;
+        if (src) imgSrcs.push(src);
       }
     }
 
-    if (hasImage && imageIndex < imageKeys.length) {
-      const src = images.get(imageKeys[imageIndex]) || '';
-      htmlParts.push(`<img src="${src}" width="800" height="600" />`);
-      imageIndex++;
+    // Any drawing whose reference didn't resolve still gets an image, assigned
+    // sequentially like before, so odd documents degrade instead of dropping.
+    for (let k = imgSrcs.length; k < imageElCount; k++) {
+      const src = nextFallbackSrc();
+      if (src) imgSrcs.push(src);
+    }
+
+    for (const src of imgSrcs) {
+      pushPart(`<img src="${src}" width="800" height="600" />`);
     }
 
     if (!text.trim()) continue;
 
-    if (styleVal.match(/heading/i) || styleVal.match(/^Heading/)) {
+    if (isListItem) {
+      const inner = runsToHtml(para) || escapeHtml(text);
+      pushPart(`<li>${inner}</li>`, true);
+    } else if (styleVal.match(/heading/i) || styleVal.match(/^Heading/)) {
       const level = styleVal.match(/\d/) ? styleVal.match(/\d/)![0] : '2';
-      htmlParts.push(`<h${level}>${escapeHtml(text)}</h${level}>`);
+      pushPart(`<h${level}>${escapeHtml(text)}</h${level}>`);
     } else if (styleVal.match(/title/i)) {
-      htmlParts.push(`<h1>${escapeHtml(text)}</h1>`);
+      pushPart(`<h1>${escapeHtml(text)}</h1>`);
     } else if (styleVal.match(/quote/i)) {
-      htmlParts.push(`<blockquote>${escapeHtml(text)}</blockquote>`);
+      pushPart(`<blockquote>${escapeHtml(text)}</blockquote>`);
     } else {
       // Body paragraph: preserve per-run bold/italic as inline-styled spans so
       // parseHtmlContent can pick them up. Fall back to plain text if a
       // paragraph somehow has no runs.
       const inner = runsToHtml(para) || escapeHtml(text);
-      htmlParts.push(`<p>${inner}</p>`);
+      pushPart(`<p>${inner}</p>`);
     }
   }
 
-  while (imageIndex < imageKeys.length) {
-    const src = images.get(imageKeys[imageIndex]) || '';
-    htmlParts.push(`<img src="${src}" width="800" height="600" />`);
-    imageIndex++;
+  if (listOpen) htmlParts.push('</ul>');
+
+  // When rels resolved the images, leftover media are things the body never
+  // references (header/footer logos) — appending them would inject junk images.
+  // Without rels we keep the legacy behaviour: dump the unplaced files at the
+  // end rather than lose them.
+  if (!resolvedViaRels) {
+    for (const key of imageKeys) {
+      if (usedKeys.has(key)) continue;
+      htmlParts.push(`<img src="${images.get(key)}" width="800" height="600" />`);
+    }
   }
 
   return htmlParts.join('\n');

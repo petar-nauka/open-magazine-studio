@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { DocBlock } from '../lib/document-model';
-import { effectiveSpan, effectiveImageSize, type RichSegment } from '../lib/paste-parser';
+import { effectiveSpan, effectiveImageSize, stripBulletPrefix, type RichSegment } from '../lib/paste-parser';
 import type { Align } from '../design-system/alignment';
 
 // Render bold/italic segments as inline markup. Falls back to plain text when
@@ -29,10 +29,19 @@ function withoutFirstChar(segments: RichSegment[]): RichSegment[] {
   return result;
 }
 
-function Bullet({ content, align }: { content: string; align?: Align }) {
+function Bullet({ content, segments, align }: { content: string; segments?: RichSegment[]; align?: Align }) {
   const text = content.replace(/^•\s*/, '');
-  const idx = text.indexOf(':');
   const style = align ? { textAlign: align } : undefined;
+  // A bullet that carries its real formatting from the source renders it as-is.
+  if (segments && segments.length > 0) {
+    return (
+      <p className="bullet" style={style}>
+        {renderInline(stripBulletPrefix(segments), text)}
+      </p>
+    );
+  }
+  // Plain bullets keep the legacy guess: a short lead-in before ':' reads as a term.
+  const idx = text.indexOf(':');
   if (idx > 0 && idx < 40) {
     return (
       <p className="bullet" style={style}>
@@ -68,7 +77,7 @@ export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; al
               : <h2 className="subheading" key={b.id} style={style}>{renderInline(segs, b.content)}</h2>;
           }
           case 'bullet':
-            return <Bullet key={b.id} content={b.content} align={a} />;
+            return <Bullet key={b.id} content={b.content} segments={b.metadata.richSegments} align={a} />;
           case 'pull_quote':
             return <p className="pull-quote" key={b.id} style={a ? { textAlign: a } : undefined}>{renderInline(b.metadata.richSegments, b.content)}</p>;
           case 'image': {
