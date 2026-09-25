@@ -1,4 +1,4 @@
-import type { ContentBlock, ParsedArticle } from './paste-parser';
+import { reconcileRichSegments, type ContentBlock, type ParsedArticle } from './paste-parser';
 import { detectRole, type BlockRole } from './role-detector';
 import type { AccentName } from '../design-system/brand';
 import type { Align } from '../design-system/alignment';
@@ -24,6 +24,21 @@ export interface ArticleDoc {
 export function findTitleBlock(blocks: ContentBlock[]): ContentBlock | undefined {
   const firstHeading = blocks.find((b) => b.type === 'heading');
   return firstHeading && (firstHeading.metadata.level ?? 2) === 1 ? firstHeading : undefined;
+}
+
+// Writes a new title back into the H1 block — the single source of truth the
+// cover reads (see findTitleBlock). Returns the same array untouched when there
+// is no H1, so callers can tell that nothing was written and fall back to their
+// standalone title field. richSegments are reconciled, otherwise the block's
+// stale inline runs would keep rendering the OLD words in the block editor.
+export function withTitle<T extends ContentBlock>(blocks: T[], title: string): T[] {
+  const titleBlock = findTitleBlock(blocks);
+  if (!titleBlock) return blocks;
+  return blocks.map((b) =>
+    b.id === titleBlock.id
+      ? { ...b, content: title, metadata: reconcileRichSegments(title, b.metadata) }
+      : b
+  );
 }
 
 export function articleFromParsed(

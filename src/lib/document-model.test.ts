@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { articleFromParsed, findTitleBlock, type ArticleDoc } from './document-model';
-import type { ParsedArticle } from './paste-parser';
+import { articleFromParsed, findTitleBlock, withTitle, type ArticleDoc } from './document-model';
+import type { ContentBlock, ParsedArticle } from './paste-parser';
 
 describe('articleFromParsed — title source', () => {
   it('reads the title from the H1 block, not a drifted parsed.title', () => {
@@ -100,5 +100,49 @@ describe('articleFromParsed: opener & drop cap', () => {
   it('respects dropCap=false', () => {
     const doc = articleFromParsed(base, { dropCap: false });
     expect(doc.dropCap).toBe(false);
+  });
+});
+
+describe('withTitle', () => {
+  const h1 = (extra: ContentBlock['metadata'] = {}): ContentBlock => ({
+    id: 'h', type: 'heading', content: 'Грешно заглавие', position: 0,
+    metadata: { level: 1, ...extra },
+  });
+  const body: ContentBlock = { id: 't', type: 'text', content: 'Тяло.', position: 1, metadata: {} };
+
+  it('writes the new title into the H1 block', () => {
+    const out = withTitle([h1(), body], 'Правилното заглавие');
+    expect(out[0].content).toBe('Правилното заглавие');
+    // and the cover reads it back
+    expect(articleFromParsed({ title: 'ignored', blocks: out }).title).toBe('Правилното заглавие');
+  });
+
+  it('leaves the other blocks untouched', () => {
+    const blocks = [h1(), body];
+    const out = withTitle(blocks, 'Ново');
+    expect(out[1]).toBe(blocks[1]);
+  });
+
+  it('returns the blocks unchanged when there is no H1 (caller falls back)', () => {
+    const blocks = [body];
+    expect(withTitle(blocks, 'Ново')).toBe(blocks);
+  });
+
+  it('ignores a first heading that is not level 1', () => {
+    const blocks = [{ ...h1(), metadata: { level: 2 } }, body];
+    expect(withTitle(blocks, 'Ново')).toBe(blocks);
+  });
+
+  it('drops stale richSegments so the new text actually renders', () => {
+    const blocks = [h1({ richSegments: [{ text: 'Грешно', bold: true }, { text: ' заглавие' }] }), body];
+    const out = withTitle(blocks, 'Ново заглавие');
+    expect(out[0].content).toBe('Ново заглавие');
+    expect(out[0].metadata.richSegments).toBeUndefined();
+  });
+
+  it('keeps uniform bold styling as a single reconciled segment', () => {
+    const blocks = [h1({ bold: true, richSegments: [{ text: 'Грешно заглавие', bold: true }] }), body];
+    const out = withTitle(blocks, 'Ново заглавие');
+    expect(out[0].metadata.richSegments).toEqual([{ text: 'Ново заглавие', bold: true, italic: undefined }]);
   });
 });

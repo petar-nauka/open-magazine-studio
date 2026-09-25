@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2, Copy, Archive } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2, Copy, Archive, LibraryBig } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import {
   loadIssue, setIssueCover, nextSortOrder, loadAllIssues,
@@ -11,6 +11,7 @@ import {
 } from '../lib/inserts';
 import { compressDataUrl, uploadImage, uploadRawFile } from '../lib/image-upload';
 import { Toast } from '../components/Toast';
+import { MediaLibraryModal } from '../components/MediaLibraryModal';
 
 export function IssuePage() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,8 @@ export function IssuePage() {
   const imgInput = useRef<HTMLInputElement>(null);
   const pdfInput = useRef<HTMLInputElement>(null);
   const adInput = useRef<HTMLInputElement>(null);
+  // Which target a library pick should fill: a full-page ad, or the issue cover.
+  const [picking, setPicking] = useState<'ad' | 'cover' | null>(null);
 
   const refresh = useCallback(() => {
     if (!id) return;
@@ -115,6 +118,23 @@ export function IssuePage() {
     }
   };
 
+  // Reuse an image already in Storage. Nothing is uploaded or copied — the new
+  // reference points at the same file, which is why the library refuses to
+  // delete anything still in use.
+  const onPickFromLibrary = async (url: string) => {
+    const target = picking;
+    setPicking(null);
+    if (!id || !target) return;
+    try {
+      if (target === 'ad') await addInsert(id, url, nextSortOrder(items));
+      else await setIssueCover(id, 'cover_image_url', url);
+      refresh();
+      setToast(target === 'ad' ? 'Рекламата е добавена от библиотеката ✓' : 'Корицата е сменена от библиотеката ✓');
+    } catch (e) {
+      setToast('Грешка: ' + String(e));
+    }
+  };
+
   const removeAd = async (insertId: string) => {
     if (!window.confirm('Да изтрия ли тази реклама?')) return;
     try {
@@ -174,6 +194,9 @@ export function IssuePage() {
           <div className="flex gap-2">
             <button onClick={() => imgInput.current?.click()} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Качи корица (снимка)</button>
             <button onClick={() => pdfInput.current?.click()} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Качи корица (PDF)</button>
+            <button onClick={() => setPicking('cover')} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+              <LibraryBig className="w-4 h-4" /> Корица от библиотека
+            </button>
             <input ref={imgInput} type="file" accept="image/*" className="hidden" onChange={(e) => onCover(e.target.files?.[0], 'cover_image_url')} />
             <input ref={pdfInput} type="file" accept="application/pdf" className="hidden" onChange={(e) => onCover(e.target.files?.[0], 'cover_pdf_url')} />
           </div>
@@ -188,6 +211,10 @@ export function IssuePage() {
               <ImageIcon className="w-4 h-4" /> {uploading ? 'Качвам…' : '+ Реклама (снимка)'}
             </button>
             <input ref={adInput} type="file" accept="image/*" className="hidden" onChange={(e) => onAd(e.target.files?.[0])} />
+            <button onClick={() => setPicking('ad')}
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+              <LibraryBig className="w-4 h-4" /> Реклама от библиотека
+            </button>
             <button onClick={() => navigate(`/new?issue=${issue.id}`)} className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">
               <Plus className="w-4 h-4" /> Нова статия
             </button>
@@ -242,6 +269,13 @@ export function IssuePage() {
           ))}
         </div>
       </main>
+      {picking && (
+        <MediaLibraryModal
+          title={picking === 'ad' ? 'Избери реклама от библиотеката' : 'Избери корица от библиотеката'}
+          onPick={onPickFromLibrary}
+          onClose={() => setPicking(null)}
+        />
+      )}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );

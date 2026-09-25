@@ -16,10 +16,12 @@ import {
   Check,
   X,
   Megaphone,
+  LibraryBig,
 } from 'lucide-react';
 import { AlignmentPicker } from './AlignmentPicker';
 import { RichTextEditor } from './RichTextEditor';
 import { compressDataUrl, uploadImage } from '../lib/image-upload';
+import { MediaLibraryModal } from './MediaLibraryModal';
 
 interface BlockEditorProps {
   blocks: ContentBlock[];
@@ -331,6 +333,7 @@ function ImageBlockEditor({
 }) {
   const [urlInput, setUrlInput] = useState(block.content);
   const [uploading, setUploading] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleUrlChange = () => {
@@ -401,15 +404,33 @@ function ImageBlockEditor({
       />
 
       {/* Upload button (always available — also for replacing an existing image) */}
-      <button
-        type="button"
-        onClick={openPicker}
-        disabled={uploading}
-        className="w-full flex items-center justify-center gap-1.5 text-[11px] text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-      >
-        {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
-        {uploading ? 'Качвам…' : 'Качи снимка'}
-      </button>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={openPicker}
+          disabled={uploading}
+          className="flex-1 flex items-center justify-center gap-1.5 text-[11px] text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+          {uploading ? 'Качвам…' : 'Качи снимка'}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setLibraryOpen(true); }}
+          className="flex items-center justify-center gap-1.5 text-[11px] text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50 transition-colors"
+          title="Избери снимка, която вече е качена"
+        >
+          <LibraryBig className="w-3 h-3" /> Библиотека
+        </button>
+      </div>
+
+      {libraryOpen && (
+        <MediaLibraryModal
+          title="Избери снимка от библиотеката"
+          onPick={(url) => { setUrlInput(url); onChange({ content: url }); setLibraryOpen(false); }}
+          onClose={() => setLibraryOpen(false)}
+        />
+      )}
 
       {/* For an ad: banner (foot of article) vs full-page. For a normal image:
           one column vs full width. Both default to a smart guess. */}

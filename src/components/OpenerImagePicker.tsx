@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { ImagePlus, Loader2, Check } from 'lucide-react';
+import { ImagePlus, Loader2, Check, LibraryBig } from 'lucide-react';
 import { compressDataUrl, uploadImage, fileToDataUrl } from '../lib/image-upload';
+import { MediaLibraryModal } from './MediaLibraryModal';
 
 const OPENER_MAXDIM = 2400; // sharper than inline images (1800) for a full-bleed A4 page
 
@@ -13,6 +14,7 @@ interface Props {
 export function OpenerImagePicker({ images, value, onChange }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const effective = value === 'none' ? undefined : (value ?? images[0]?.url);
   const isUploaded = value !== undefined && value !== 'none' && !images.some((i) => i.url === value);
@@ -83,14 +85,31 @@ export function OpenerImagePicker({ images, value, onChange }: Props) {
       </div>
 
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={uploading}
-        className="w-full flex items-center justify-center gap-1.5 text-[11px] text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-      >
-        {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
-        {uploading ? 'Качвам…' : 'Качи нова'}
-      </button>
+      <div className="space-y-1">
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="w-full flex items-center justify-center gap-1.5 text-[11px] text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+          {uploading ? 'Качвам…' : 'Качи нова'}
+        </button>
+        <button
+          onClick={() => setLibraryOpen(true)}
+          className="w-full flex items-center justify-center gap-1.5 text-[11px] text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50 transition-colors"
+          title="Избери корица от вече качените снимки"
+        >
+          <LibraryBig className="w-3 h-3" /> От библиотека
+        </button>
+      </div>
+
+      {libraryOpen && (
+        <MediaLibraryModal
+          title="Избери корица от библиотеката"
+          onPick={(url) => { onChange(url); setLibraryOpen(false); }}
+          onClose={() => setLibraryOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,19 +1,20 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { BookOpen, Download, Layers, ArrowLeft, Settings, Archive, MessageSquare } from 'lucide-react';
+import { BookOpen, Download, Layers, ArrowLeft, Settings, Archive, MessageSquare, LibraryBig } from 'lucide-react';
 import { PasteZone } from './components/PasteZone';
 import { BlockEditor } from './components/BlockEditor';
 import { AIChatPanel } from './components/AIChatPanel';
 import { MagazinePreviewFrame, type MagazinePreviewFrameHandle } from './magazine/MagazinePreviewFrame';
 import { ArticleSidebar } from './components/ArticleSidebar';
 import { type ParsedArticle, type ContentBlock } from './lib/paste-parser';
-import { articleFromParsed, findTitleBlock } from './lib/document-model';
+import { articleFromParsed, findTitleBlock, withTitle } from './lib/document-model';
 import { uploadArticleImages } from './lib/image-upload';
 import { supabase } from './lib/supabase';
 import { replaceArticleBlocks } from './lib/save-blocks';
 import { useUnsavedChangesWarning } from './lib/use-unsaved-warning';
 import { nextSortOrder } from './lib/issues';
 import { Toast } from './components/Toast';
+import { MediaLibraryModal } from './components/MediaLibraryModal';
 import type { AccentName } from './design-system/brand';
 import type { Align } from './design-system/alignment';
 
@@ -31,6 +32,7 @@ function App() {
   const [categories, setCategories] = useState<{ id: string; name: string; issue_number: number | null }[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [accent, setAccent] = useState<AccentName | string>('teal');
@@ -45,14 +47,28 @@ function App() {
   );
 
   // Title comes from the H1 block so it matches the cover and what the user edits.
-  const articleTitle = article ? (findTitleBlock(article.blocks)?.content?.trim() || article.title) : '';
+  // `titleValue` is the RAW editable text — trimming what the field renders would
+  // swallow spaces as they are typed. `articleTitle` is the trimmed form used for
+  // display and saving, falling back to the parsed title if the H1 is emptied.
+  const titleValue = article ? (findTitleBlock(article.blocks)?.content ?? article.title) : '';
+  const articleTitle = article ? (titleValue.trim() || article.title) : '';
+  // Editing writes back into that H1 block; articles parsed without one fall back
+  // to the standalone parsed title.
+  const setArticleTitle = (val: string) => {
+    setArticle((prev) => {
+      if (!prev) return prev;
+      return findTitleBlock(prev.blocks)
+        ? { ...prev, blocks: withTitle(prev.blocks, val) }
+        : { ...prev, title: val };
+    });
+  };
 
   // Unsaved-changes tracking: compare a serialized snapshot of the editable state
   // against the baseline captured at the last save (null baseline = never saved,
   // so a freshly pasted article counts as dirty). Warns before the tab closes.
   const savedSnapshot = useRef<string | null>(null);
   const currentSnapshot = useMemo(
-    () => (article ? JSON.stringify({ blocks: article.blocks, articleAuthor, tags, categoryId, accent, align, dropCap, openerImage }) : null),
+    () => (article ? JSON.stringify({ blocks: article.blocks, title: article.title, articleAuthor, tags, categoryId, accent, align, dropCap, openerImage }) : null),
     [article, articleAuthor, tags, categoryId, accent, align, dropCap, openerImage]
   );
   const dirty = view === 'editor' && currentSnapshot !== null && currentSnapshot !== savedSnapshot.current;
@@ -330,6 +346,14 @@ function App() {
               {saving ? 'Запазване...' : 'Запази'}
             </button>
             <button
+              onClick={() => setLibraryOpen(true)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+              title="Всички качени снимки — преизползване и изчистване"
+            >
+              <LibraryBig className="w-4 h-4" />
+              Библиотека
+            </button>
+            <button
               onClick={() => previewRef.current?.print()}
               className="px-4 py-2 text-sm font-medium text-white bg-[#007daa] rounded-lg hover:opacity-90 transition-colors flex items-center gap-2"
             >
@@ -351,6 +375,8 @@ function App() {
         {/* Left sidebar: settings */}
         <aside className="w-72 shrink-0 print:hidden">
           <ArticleSidebar
+            title={titleValue}
+            onTitleChange={setArticleTitle}
             author={articleAuthor}
             onAuthorChange={setArticleAuthor}
             categoryId={categoryId}
@@ -404,6 +430,7 @@ function App() {
           onClose={() => setChatOpen(false)}
         />
       )}
+      {libraryOpen && <MediaLibraryModal onClose={() => setLibraryOpen(false)} />}
       {toast && (<Toast message={toast} onClose={() => setToast(null)} actionLabel="Виж всички броеве" onAction={() => navigate('/archive')} />)}
     </div>
   );

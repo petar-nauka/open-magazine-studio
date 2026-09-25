@@ -12,6 +12,8 @@ interface Category {
 }
 
 interface Props {
+  title: string;
+  onTitleChange: (v: string) => void;
   author: string;
   onAuthorChange: (v: string) => void;
   categoryId: string | null;
@@ -49,6 +51,19 @@ export function ArticleSidebar(props: Props) {
       <section>
         <SectionLabel>Статия</SectionLabel>
         <div className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-500 mb-1.5 block">Заглавие</label>
+            {/* Textarea, not an input: magazine titles run long and a single line
+                would hide the end of the very text the user came here to fix. */}
+            <textarea
+              value={props.title}
+              onChange={(e) => props.onTitleChange(e.target.value)}
+              rows={3}
+              placeholder="Заглавие на статията"
+              className="w-full px-3 py-2 text-sm font-semibold border border-gray-200 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-gray-200"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">Показва се върху заглавната снимка.</p>
+          </div>
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block">Автор</label>
             <input

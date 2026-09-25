@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Download, Layers, Save, Loader2, MessageSquare, BookOpen } from 'lucide-react';
+import { ArrowLeft, Download, Layers, Save, Loader2, MessageSquare, BookOpen, LibraryBig } from 'lucide-react';
 import { MagazinePreviewFrame, type MagazinePreviewFrameHandle } from '../magazine/MagazinePreviewFrame';
-import { articleFromParsed, findTitleBlock } from '../lib/document-model';
+import { articleFromParsed, findTitleBlock, withTitle } from '../lib/document-model';
 import { ArticleSidebar } from '../components/ArticleSidebar';
 import { BlockEditor } from '../components/BlockEditor';
 import { AIChatPanel } from '../components/AIChatPanel';
@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { replaceArticleBlocks } from '../lib/save-blocks';
 import { useUnsavedChangesWarning } from '../lib/use-unsaved-warning';
 import { Toast } from '../components/Toast';
+import { MediaLibraryModal } from '../components/MediaLibraryModal';
 import type { AccentName } from '../design-system/brand';
 import type { Align } from '../design-system/alignment';
 
@@ -46,6 +47,7 @@ export function EditArticlePage() {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [accent, setAccent] = useState<AccentName | string>('teal');
   const [align, setAlign] = useState<Align>('left');
@@ -58,7 +60,7 @@ export function EditArticlePage() {
   const title = titleBlock?.content ?? dbTitle;
   const setTitle = (val: string) => {
     if (titleBlock) {
-      setBlocks((prev) => prev.map((b) => (b.id === titleBlock.id ? { ...b, content: val } : b)));
+      setBlocks((prev) => withTitle(prev, val));
     } else {
       setDbTitle(val);
     }
@@ -271,6 +273,14 @@ export function EditArticlePage() {
               Запази
             </button>
             <button
+              onClick={() => setLibraryOpen(true)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+              title="Всички качени снимки — преизползване и изчистване"
+            >
+              <LibraryBig className="w-4 h-4" />
+              Библиотека
+            </button>
+            <button
               onClick={() => previewRef.current?.print()}
               className="px-4 py-2 text-sm font-medium text-white bg-[#007daa] rounded-lg hover:opacity-90 transition-colors flex items-center gap-2"
             >
@@ -298,6 +308,8 @@ export function EditArticlePage() {
         {/* Left sidebar */}
         <aside className="w-72 shrink-0 print:hidden">
           <ArticleSidebar
+            title={title}
+            onTitleChange={setTitle}
             author={author}
             onAuthorChange={setAuthor}
             categoryId={categoryId}
@@ -349,6 +361,7 @@ export function EditArticlePage() {
         open={chatOpen}
         onClose={() => setChatOpen(false)}
       />
+      {libraryOpen && <MediaLibraryModal onClose={() => setLibraryOpen(false)} />}
       {toast && (<Toast message={toast} onClose={() => setToast(null)} />)}
     </div>
   );
