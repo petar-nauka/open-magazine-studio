@@ -41,7 +41,7 @@ export function usePaged(
         ),
       );
       const previewer = new Previewer();
-      await previewer.preview(sourceHtml, ['/fonts/fonts.css', '/magazine.css'], target);
+      await previewer.preview(sourceHtml, ['/fonts/fonts.css', `/magazine.css?v=${__BUILD_ID__}`], target);
       // Let trailing images/ads absorb the empty band at the bottom of each
       // page — before data-paged-ready, so print and PDF export see the result.
       fillPageGaps(target);
