@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2, Copy, Archive, ArchiveRestore, LibraryBig } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2, Copy, Archive, ArchiveRestore, LibraryBig, GripVertical, Link2 } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import {
   loadIssue, setIssueCover, nextSortOrder, loadAllIssues,
   archiveArticleFromIssue, duplicateArticleToIssue, setIssueArchived, type Issue,
 } from '../lib/issues';
 import {
-  loadInserts, addInsert, deleteInsert, reorderIssueItems, mergeIssueItems, type IssueItem,
+  loadInserts, addInsert, deleteInsert, setInsertLink, saveIssueOrder, mergeIssueItems, moveItem, moveItemTo,
+  type IssueItem,
 } from '../lib/inserts';
+import { normalizeHref } from '../lib/links';
 import { compressDataUrl, uploadImage, uploadRawFile } from '../lib/image-upload';
 import { Toast } from '../components/Toast';
 import { MediaLibraryModal } from '../components/MediaLibraryModal';
@@ -28,6 +30,11 @@ export function IssuePage() {
   const adInput = useRef<HTMLInputElement>(null);
   // Which target a library pick should fill: a full-page ad, or the issue cover.
   const [picking, setPicking] = useState<'ad' | 'cover' | null>(null);
+  // Drag-and-drop: the row being dragged, and where it would land (before/after a row).
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ idx: number; after: boolean } | null>(null);
+  // Reorders are saved one after another, so a slow save can't land after a newer one.
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   const refresh = useCallback(() => {
     if (!id) return;
@@ -78,12 +85,53 @@ export function IssuePage() {
     }
   };
 
-  const move = async (itemId: string, dir: 'up' | 'down') => {
+  // Show the new order at once and save in the background; only a failed save
+  // reloads from the DB, which puts the real order back.
+  const applyOrder = (next: IssueItem[]) => {
+    if (next === items) return; // no-op move
+    setItems(next);
+    saveQueue.current = saveQueue.current
+      .then(() => saveIssueOrder(next))
+      .catch((e) => {
+        setToast('Грешка при пренареждане: ' + String(e));
+        refresh();
+      });
+  };
+
+  const move = (itemId: string, dir: 'up' | 'down') => applyOrder(moveItem(items, itemId, dir));
+
+  const endDrag = () => { setDragId(null); setDropAt(null); };
+
+  // The upper half of a row drops before it, the lower half after it.
+  const onRowDragOver = (e: React.DragEvent, idx: number) => {
+    if (!dragId) return; // not one of our rows (e.g. a file dragged in)
+    e.preventDefault();
+    const r = e.currentTarget.getBoundingClientRect();
+    const after = e.clientY > r.top + r.height / 2;
+    if (dropAt?.idx !== idx || dropAt.after !== after) setDropAt({ idx, after });
+  };
+
+  const onRowDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (dragId && dropAt) {
+      const from = items.findIndex((i) => i.id === dragId);
+      let to = dropAt.after ? dropAt.idx + 1 : dropAt.idx; // insertion point in the current list
+      if (to > from) to -= 1;                              // ...once the row itself is taken out
+      applyOrder(moveItemTo(items, dragId, to));
+    }
+    endDrag();
+  };
+
+  const saveAdLink = async (insertId: string, typed: string) => {
+    const link = normalizeHref(typed) ?? null;
+    const current = items.find((i) => i.id === insertId)?.link_url ?? null;
+    if (link === current) return;
     try {
-      await reorderIssueItems(items, itemId, dir);
-      refresh();
+      await setInsertLink(insertId, link);
+      setItems((prev) => prev.map((i) => (i.id === insertId ? { ...i, link_url: link } : i)));
+      setToast(link ? 'Линкът на рекламата е запазен ✓' : 'Линкът на рекламата е махнат');
     } catch (e) {
-      setToast('Грешка при пренареждане: ' + String(e));
+      setToast('Грешка при запазване на линка: ' + String(e));
     }
   };
 
@@ -247,15 +295,48 @@ export function IssuePage() {
             </button>
           </div>
         </div>
+        {items.length > 1 && (
+          <p className="text-xs text-gray-400 mb-2">Хвани <GripVertical className="w-3 h-3 inline -mt-0.5" /> и влачи, за да преместиш статия или реклама на друго място.</p>
+        )}
         <div className="space-y-2">
           {items.length === 0 && <div className="text-sm text-gray-400 py-8 text-center">Още няма съдържание в този брой.</div>}
           {items.map((it, idx) => (
-            <div key={it.id} className="bg-white rounded-lg border border-gray-200 p-3 flex items-center gap-3">
+            <div key={it.id} data-issue-row
+              onDragOver={(e) => onRowDragOver(e, idx)}
+              onDrop={onRowDrop}
+              className={`relative bg-white rounded-lg border border-gray-200 p-3 flex items-center gap-3 ${dragId === it.id ? 'opacity-40' : ''}`}>
+              {/* Drop marker, drawn in the gap above or below the row */}
+              {dragId && dropAt?.idx === idx && dragId !== it.id && (
+                <div className={`absolute left-0 right-0 h-0.5 bg-[#007daa] rounded pointer-events-none ${dropAt.after ? '-bottom-[5px]' : '-top-[5px]'}`} />
+              )}
+              {/* Only the handle starts a drag, so the link field and buttons keep working normally. */}
+              <span draggable title="Влачи, за да преместиш"
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', it.id); // Firefox won't start a drag without data
+                  const row = e.currentTarget.closest<HTMLElement>('[data-issue-row]');
+                  if (row) e.dataTransfer.setDragImage(row, 16, row.offsetHeight / 2);
+                  setDragId(it.id);
+                }}
+                onDragEnd={endDrag}
+                className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 -ml-1">
+                <GripVertical className="w-4 h-4" />
+              </span>
               <span className="text-xs text-gray-400 w-5">{idx + 1}</span>
               {it.kind === 'insert' ? (
                 <>
                   <img src={it.image_url} alt="" className="w-10 h-14 object-contain bg-gray-50 rounded border border-gray-100" />
-                  <span className="flex-1 text-sm text-gray-500 italic">Реклама</span>
+                  <div className="flex-1 min-w-0 flex items-center gap-3">
+                    <span className="text-sm text-gray-500 italic shrink-0">Реклама</span>
+                    <label className="flex-1 min-w-0 flex items-center gap-1.5 border border-gray-200 rounded px-2 py-1 focus-within:ring-1 focus-within:ring-gray-300">
+                      <Link2 className={`w-3.5 h-3.5 shrink-0 ${it.link_url ? 'text-[#007daa]' : 'text-gray-300'}`} />
+                      <input type="url" key={it.link_url ?? ''} defaultValue={it.link_url ?? ''}
+                        onBlur={(e) => saveAdLink(it.id, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        placeholder="Линк при клик върху рекламата (https://...)"
+                        className="flex-1 min-w-0 text-xs text-gray-700 bg-transparent focus:outline-none" />
+                    </label>
+                  </div>
                 </>
               ) : (
                 <span className="flex-1 text-sm text-gray-900 truncate">{it.title || 'Без заглавие'}</span>

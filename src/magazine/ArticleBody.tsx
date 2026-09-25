@@ -83,7 +83,18 @@ export function ArticleBody({ blocks, align, dropCap }: { blocks: DocBlock[]; al
           case 'image': {
             const size = effectiveImageSize(b);
             const cls = size === 'full' ? 'full' : size === 'wide' ? 'wide' : `inline size-${size}`;
-            return <img className={cls} key={b.id} src={b.content} alt="" />;
+            // A linked image is wrapped in an <a> that takes the image's place in
+            // the column flow (spanning both columns for wide/full), so the image
+            // keeps its own sizing and the link stays clickable in the PDF.
+            const href = b.metadata.href?.trim();
+            return href
+              ? (
+                <a className={size === 'full' || size === 'wide' ? 'img-link span' : 'img-link'} key={b.id}
+                  href={href} target="_blank" rel="noopener noreferrer">
+                  <img className={cls} src={b.content} alt="" />
+                </a>
+              )
+              : <img className={cls} key={b.id} src={b.content} alt="" />;
           }
           case 'ad': {
             // Advert size: 'page' (own sheet), 'column' (within one column) or

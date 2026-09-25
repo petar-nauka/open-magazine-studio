@@ -88,7 +88,10 @@ export function RenderPage() {
               <MagazineDocument key={it.id} anchorId={`art-${it.id}`} doc={it.doc} />
             ) : (
               <div key={it.id} className="magazine">
-                <section className="ad-plate" style={{ backgroundImage: `url(${it.imageUrl})` }} />
+                {/* A linked advert is an <a>, so the whole page stays clickable in the PDF. */}
+                {it.href
+                  ? <a className="ad-plate" href={it.href} target="_blank" rel="noopener noreferrer" style={{ backgroundImage: `url(${it.imageUrl})` }} />
+                  : <section className="ad-plate" style={{ backgroundImage: `url(${it.imageUrl})` }} />}
               </div>
             ),
           )}

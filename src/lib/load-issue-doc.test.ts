@@ -18,4 +18,16 @@ describe('buildRenderItems', () => {
     expect(items[1]).toMatchObject({ kind: 'insert', id: 'ad1', imageUrl: 'http://x/ad.jpg' });
     if (items[0].kind === 'article') expect(items[0].doc.title).toBe('Първа');
   });
+
+  it("passes an advert's link through to the print view", () => {
+    const inserts = [{ id: 'ad1', image_url: 'http://x/ad.jpg', sort_order: 0, kind: 'image', link_url: 'https://night.nauka.bg' }];
+    const [item] = buildRenderItems([], {}, inserts);
+    expect(item).toMatchObject({ kind: 'insert', href: 'https://night.nauka.bg' });
+  });
+
+  it('leaves an advert without a link unlinked', () => {
+    const inserts = [{ id: 'ad1', image_url: 'http://x/ad.jpg', sort_order: 0, kind: 'image', link_url: null }];
+    const [item] = buildRenderItems([], {}, inserts);
+    expect(item.kind === 'insert' && item.href).toBeFalsy();
+  });
 });

@@ -100,6 +100,13 @@
 .magazine img.full { display: block; column-span: all; width: 100%; height: auto;
   margin: .5em 0 .7em; border-radius: 2px; break-inside: avoid; }
 
+/* Linked image: the <a> takes the image's place in the column flow as a plain
+   block, so the image inside keeps the sizing rules above and Chrome turns the
+   <a> into a clickable area in the PDF. Wide/full images span both columns, so
+   their wrapper must span too ('span'). */
+.magazine a.img-link { display: block; break-inside: avoid; }
+.magazine a.img-link.span { column-span: all; }
+
 /* Advertising banner. The wrapper (an <a> when the ad links somewhere, else a
    <div>) carries the layout; the image fills it, undistorted within the height
    cap. 'ad-full' spans both columns (default), 'ad-col' stays within one. */
@@ -168,9 +175,10 @@
   @bottom-center { content: none; }
 }
 
-/* Full-page advert: whole image fit (contain) on a white sheet, no crop. */
+/* Full-page advert: whole image fit (contain) on a white sheet, no crop.
+   display:block because a linked advert is an <a>, not a <section>. */
 .ad-plate {
-  position: relative; width: 100%; height: calc(297mm - 34mm);
+  display: block; position: relative; width: 100%; height: calc(297mm - 34mm);
   break-after: page;
   background-size: contain; background-position: center; background-repeat: no-repeat;
   background-color: #fff;

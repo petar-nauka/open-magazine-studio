@@ -24,7 +24,7 @@ export interface ContentBlock {
     span?: 'column' | 'full';
     imageSize?: 'sm' | 'md' | 'lg' | 'wide' | 'full';
     adMode?: 'column' | 'full' | 'page';
-    href?: string;
+    href?: string; // image/ad block: where a click leads (stays a link in the PDF)
     originalSrc?: string;
     align?: Align;
   };

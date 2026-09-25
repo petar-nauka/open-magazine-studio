@@ -42,6 +42,16 @@ function isCaptionish(el: HTMLElement): boolean {
   return el.matches('p.text-full, p.spacer') || el.getBoundingClientRect().height === 0;
 }
 
+// The element a trailing-gap fill may act on, given a direct child of the flow:
+// a spanning image or banner advert. A linked image sits inside
+// <a class="img-link">, so the <a> is the flow child but the image inside is
+// what gets measured and resized. (A linked banner is different: its <a> IS
+// the .ad-banner-wrap.)
+export function spanningTarget(child: HTMLElement): HTMLElement | null {
+  const el = child.matches('a.img-link') ? (child.firstElementChild as HTMLElement | null) : child;
+  return el?.matches('img.wide, img.full, .ad-banner-wrap.ad-full') ? el : null;
+}
+
 function applyToPage(content: HTMLElement): void {
   // A page holds at most one article-body fragment (openers/plates force page breaks).
   const flow = content.querySelector<HTMLElement>('.article-body');
@@ -51,11 +61,12 @@ function applyToPage(content: HTMLElement): void {
   // children of the flow, so document order == child order.
   const children = Array.from(flow.children) as HTMLElement[];
   let idx = -1;
+  let el: HTMLElement | null = null;
   for (let i = children.length - 1; i >= 0; i--) {
-    if (children[i].matches('img.wide, img.full, .ad-banner-wrap.ad-full')) { idx = i; break; }
+    el = spanningTarget(children[i]);
+    if (el) { idx = i; break; }
   }
-  if (idx < 0) return;
-  const el = children[idx];
+  if (idx < 0 || !el) return;
 
   // rects are affected by any preview zoom/transform; offset* are layout px.
   const contentRect = content.getBoundingClientRect();

@@ -22,6 +22,7 @@ import { AlignmentPicker } from './AlignmentPicker';
 import { RichTextEditor } from './RichTextEditor';
 import { compressDataUrl, uploadImage } from '../lib/image-upload';
 import { MediaLibraryModal } from './MediaLibraryModal';
+import { normalizeHref } from '../lib/links';
 
 interface BlockEditorProps {
   blocks: ContentBlock[];
@@ -458,17 +459,6 @@ function ImageBlockEditor({
           </div>
         </div>
       )}
-      {block.content && block.type === 'ad' && (
-        <input
-          type="url"
-          defaultValue={block.metadata.href ?? ''}
-          onClick={(e) => e.stopPropagation()}
-          onBlur={(e) => onChange({ metadata: { ...block.metadata, href: e.target.value.trim() || undefined } })}
-          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-          placeholder="Линк към сайт (https://...)"
-          className="w-full text-[10px] px-2 py-1 mt-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-200"
-        />
-      )}
       {block.content && block.type !== 'ad' && (
         <div className="flex items-center gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
           <span className="text-[10px] text-gray-400 shrink-0">Размер:</span>
@@ -493,6 +483,25 @@ function ImageBlockEditor({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Where a click on the image/advert leads — in the preview and in the PDF.
+          Keyed by the saved value so the field shows the cleaned-up link
+          (https:// added) after it is saved. */}
+      {block.content && (
+        <input
+          key={block.metadata.href ?? ''}
+          type="url"
+          defaultValue={block.metadata.href ?? ''}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={(e) => {
+            const href = normalizeHref(e.target.value);
+            if (href !== block.metadata.href) onChange({ metadata: { ...block.metadata, href } });
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder={block.type === 'ad' ? 'Линк към сайт (https://...)' : 'Линк при клик върху снимката (https://...)'}
+          className="w-full text-[10px] px-2 py-1 mt-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-200"
+        />
       )}
 
       {/* URL input when active — optional, for an already-hosted image */}
