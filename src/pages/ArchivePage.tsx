@@ -21,6 +21,7 @@ interface Category {
   description: string;
   published_at: string | null;
   created_at: string;
+  archived_at?: string | null;
 }
 
 interface ArticleSummary {
@@ -155,7 +156,7 @@ export function ArchivePage() {
             <option value="">Всички броеве</option>
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
-                {cat.issue_number ? `#${cat.issue_number} - ` : ''}{cat.name}
+                {cat.issue_number ? `#${cat.issue_number} - ` : ''}{cat.name}{cat.archived_at ? ' (архив)' : ''}
               </option>
             ))}
           </select>
@@ -228,6 +229,7 @@ export function ArchivePage() {
                       {cat.issue_number ? `#${cat.issue_number}` : '-'}
                     </span>
                     {cat.name}
+                    {cat.archived_at && <span className="ml-1.5 text-[10px] text-amber-700">архив</span>}
                     <span className="ml-auto text-gray-400 float-right">{count}</span>
                   </button>
                 );

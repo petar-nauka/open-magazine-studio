@@ -7,7 +7,10 @@ export interface Issue {
   cover_image_url: string;
   cover_pdf_url?: string;
   created_at: string;
+  archived_at?: string | null; // set = hidden from the home page, listed under "Архив"
 }
+
+const ISSUE_LIST_COLUMNS = 'id, name, issue_number, cover_image_url, created_at, archived_at';
 export interface IssueArticle { id: string; title: string; sort_order: number; }
 
 export function nextSortOrder(items: { sort_order: number }[]): number {
@@ -43,13 +46,34 @@ export function pageWindow(current: number, totalPages: number): (number | 'gap'
   return out;
 }
 
-// One page of issues, newest first. `page` is 1-based. created_at is a tie-breaker
-// so rows without an issue_number keep a stable place across pages.
-export async function loadIssuesPage(page: number, pageSize = ISSUES_PAGE_SIZE): Promise<{ issues: Issue[]; total: number }> {
+// Home page URL state: which tab (active issues or the archive) and which page.
+// Defaults are left out so the first active page stays a bare "/".
+export function issuesSearch({ archived, page }: { archived: boolean; page: number }): Record<string, string> {
+  return {
+    ...(archived ? { view: 'archive' } : {}),
+    ...(page > 1 ? { page: String(page) } : {}),
+  };
+}
+
+// Only this ever filters on archived_at, so the list and its counts can't disagree.
+function onlyArchived<Q extends { is(c: string, v: null): Q; not(c: string, op: string, v: null): Q }>(q: Q, archived: boolean): Q {
+  return archived ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
+}
+
+export async function countIssues(archived: boolean): Promise<number> {
+  const { count, error } = await onlyArchived(
+    supabase.from('mag_pdf_categories').select('id', { count: 'exact', head: true }), archived);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+// One page of active or archived issues, newest first. `page` is 1-based.
+// created_at is a tie-breaker so rows without an issue_number keep a stable
+// place across pages.
+export async function loadIssuesPage(page: number, archived = false, pageSize = ISSUES_PAGE_SIZE): Promise<{ issues: Issue[]; total: number }> {
   const from = (page - 1) * pageSize;
-  const { data, error, count, status } = await supabase
-    .from('mag_pdf_categories')
-    .select('id, name, issue_number, cover_image_url, created_at', { count: 'exact' })
+  const { data, error, count, status } = await onlyArchived(
+    supabase.from('mag_pdf_categories').select(ISSUE_LIST_COLUMNS, { count: 'exact' }), archived)
     .order('issue_number', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .range(from, from + pageSize - 1);
@@ -57,12 +81,20 @@ export async function loadIssuesPage(page: number, pageSize = ISSUES_PAGE_SIZE):
     // Page past the end (stale link, issues deleted): PostgREST answers 416 with
     // no count, so fetch the count alone and let the caller clamp. Checked by
     // status, not error.code — this stack returns a mangled body with no code.
-    const head = await supabase.from('mag_pdf_categories').select('id', { count: 'exact', head: true });
-    if (head.error) throw head.error;
-    return { issues: [], total: head.count ?? 0 };
+    return { issues: [], total: await countIssues(archived) };
   }
   if (error) throw error; // let the caller show an error state instead of a silent empty list
   return { issues: (data ?? []) as Issue[], total: count ?? 0 };
+}
+
+// Archiving only hides the issue from the home page; its articles and inserts
+// are untouched, and passing false brings it back.
+export async function setIssueArchived(id: string, archived: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('mag_pdf_categories')
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function createIssue(name: string): Promise<Issue> {
@@ -92,7 +124,7 @@ export async function setIssueCover(id: string, field: 'cover_image_url' | 'cove
 export async function loadAllIssues(): Promise<Issue[]> {
   const { data, error } = await supabase
     .from('mag_pdf_categories')
-    .select('id, name, issue_number, cover_image_url, created_at')
+    .select(ISSUE_LIST_COLUMNS)
     .order('issue_number', { ascending: false, nullsFirst: false });
   if (error) throw error; // surfaced by the caller's catch instead of a silent empty list
   return (data ?? []) as Issue[];

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2, Copy, Archive, LibraryBig } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Download, FileText, Image as ImageIcon, Trash2, Copy, Archive, ArchiveRestore, LibraryBig } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import {
   loadIssue, setIssueCover, nextSortOrder, loadAllIssues,
-  archiveArticleFromIssue, duplicateArticleToIssue, type Issue,
+  archiveArticleFromIssue, duplicateArticleToIssue, setIssueArchived, type Issue,
 } from '../lib/issues';
 import {
   loadInserts, addInsert, deleteInsert, reorderIssueItems, mergeIssueItems, type IssueItem,
@@ -52,6 +52,19 @@ export function IssuePage() {
       refresh();
     } catch (e) {
       setToast('Грешка при архивиране: ' + String(e));
+    }
+  };
+
+  // Reversible, so no confirm: the banner and the same button undo it.
+  const toggleIssueArchived = async () => {
+    if (!issue) return;
+    const archive = !issue.archived_at;
+    try {
+      await setIssueArchived(issue.id, archive);
+      refresh();
+      setToast(archive ? 'Броят е в архива ✓ Вече не се показва в началната страница.' : 'Броят е върнат в активните ✓');
+    } catch (e) {
+      setToast('Грешка: ' + String(e));
     }
   };
 
@@ -183,8 +196,22 @@ export function IssuePage() {
                 <FileText className="w-4 h-4" /> Свали корица (PDF)
               </a>
             )}
+            <button onClick={toggleIssueArchived}
+              title={issue.archived_at ? 'Върни броя в началната страница' : 'Скрий броя от началната страница (нищо не се изтрива)'}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+              {issue.archived_at
+                ? <><ArchiveRestore className="w-4 h-4" /> Върни от архива</>
+                : <><Archive className="w-4 h-4" /> Архивирай</>}
+            </button>
           </div>
         </div>
+
+        {issue.archived_at && (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 mb-6 text-sm">
+            <Archive className="w-4 h-4 shrink-0" />
+            Този брой е в архива и не се показва в началната страница. Можеш да го редактираш и сваляш както обикновено.
+          </div>
+        )}
 
         {/* Cover */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex items-center gap-4">
@@ -250,6 +277,7 @@ export function IssuePage() {
                           <button key={iss.id} onClick={() => handleDuplicate(it.id, iss.id)}
                             className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 truncate">
                             {iss.issue_number ? `Брой ${iss.issue_number} · ` : ''}{iss.name}
+                            {iss.archived_at && <span className="text-gray-400"> (архив)</span>}
                           </button>
                         ))}
                         {allIssues.filter((iss) => iss.id !== issue.id).length === 0 && (

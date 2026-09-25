@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextSortOrder, pageCount, clampPage, pageWindow } from './issues';
+import { nextSortOrder, pageCount, clampPage, pageWindow, issuesSearch } from './issues';
 
 describe('nextSortOrder', () => {
   it('returns 0 for an empty issue', () => { expect(nextSortOrder([])).toBe(0); });
@@ -37,5 +37,18 @@ describe('pageWindow', () => {
   });
   it('fills a one-page hole instead of drawing a gap', () => {
     expect(pageWindow(4, 12)).toEqual([1, 2, 3, 4, 5, 'gap', 12]);
+  });
+});
+
+describe('issuesSearch', () => {
+  it('keeps the first active page at a bare /', () => {
+    expect(issuesSearch({ archived: false, page: 1 })).toEqual({});
+  });
+  it('adds the page after the first', () => {
+    expect(issuesSearch({ archived: false, page: 3 })).toEqual({ page: '3' });
+  });
+  it('marks the archive view', () => {
+    expect(issuesSearch({ archived: true, page: 1 })).toEqual({ view: 'archive' });
+    expect(issuesSearch({ archived: true, page: 2 })).toEqual({ view: 'archive', page: '2' });
   });
 });
