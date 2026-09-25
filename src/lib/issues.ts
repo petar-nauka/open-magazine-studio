@@ -15,14 +15,54 @@ export function nextSortOrder(items: { sort_order: number }[]): number {
 }
 
 
-export async function loadRecentIssues(limit = 5): Promise<Issue[]> {
-  const { data, error } = await supabase
+export const ISSUES_PAGE_SIZE = 20;
+
+export function pageCount(total: number, pageSize: number): number {
+  return Math.max(1, Math.ceil(total / pageSize));
+}
+
+export function clampPage(page: number, totalPages: number): number {
+  if (!Number.isFinite(page) || page < 1) return 1;
+  return Math.min(Math.floor(page), totalPages);
+}
+
+// Page buttons to draw: first, last and the neighbours of the current page,
+// with 'gap' where pages are skipped. A single skipped page is shown instead
+// of a gap, since "…" would take the same room.
+export function pageWindow(current: number, totalPages: number): (number | 'gap')[] {
+  const pages = [...new Set([1, current - 1, current, current + 1, totalPages])]
+    .filter((p) => p >= 1 && p <= totalPages)
+    .sort((a, b) => a - b);
+  const out: (number | 'gap')[] = [];
+  pages.forEach((p, i) => {
+    const prev = pages[i - 1];
+    if (prev !== undefined && p - prev === 2) out.push(prev + 1);
+    else if (prev !== undefined && p - prev > 2) out.push('gap');
+    out.push(p);
+  });
+  return out;
+}
+
+// One page of issues, newest first. `page` is 1-based. created_at is a tie-breaker
+// so rows without an issue_number keep a stable place across pages.
+export async function loadIssuesPage(page: number, pageSize = ISSUES_PAGE_SIZE): Promise<{ issues: Issue[]; total: number }> {
+  const from = (page - 1) * pageSize;
+  const { data, error, count, status } = await supabase
     .from('mag_pdf_categories')
-    .select('id, name, issue_number, cover_image_url, created_at')
+    .select('id, name, issue_number, cover_image_url, created_at', { count: 'exact' })
     .order('issue_number', { ascending: false, nullsFirst: false })
-    .limit(limit);
+    .order('created_at', { ascending: false })
+    .range(from, from + pageSize - 1);
+  if (status === 416) {
+    // Page past the end (stale link, issues deleted): PostgREST answers 416 with
+    // no count, so fetch the count alone and let the caller clamp. Checked by
+    // status, not error.code — this stack returns a mangled body with no code.
+    const head = await supabase.from('mag_pdf_categories').select('id', { count: 'exact', head: true });
+    if (head.error) throw head.error;
+    return { issues: [], total: head.count ?? 0 };
+  }
   if (error) throw error; // let the caller show an error state instead of a silent empty list
-  return (data ?? []) as Issue[];
+  return { issues: (data ?? []) as Issue[], total: count ?? 0 };
 }
 
 export async function createIssue(name: string): Promise<Issue> {
